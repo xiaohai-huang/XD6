@@ -1,6 +1,4 @@
-// var five = require("johnny-five");
 import five from "johnny-five";
-// import Joint from "./lib/Joint.ts";
 import Firmata from "firmata";
 import Joint from "./lib/Joint.ts";
 
