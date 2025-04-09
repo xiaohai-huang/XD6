@@ -45,13 +45,8 @@ export default class Joint {
   private isHoming: boolean = false;
   private homeSwitchActivate: boolean = false;
   private homed: boolean = false;
-  private degrees: number = 0;
   private logger: pino.Logger;
   private name: string;
-
-  public get Degrees() {
-    return this.degrees;
-  }
 
   public get Homed() {
     return this.homed;
@@ -177,10 +172,7 @@ export default class Joint {
    */
   private step(steps: number, callback = () => {}) {
     this.ensureHomed();
-    io.accelStepperStep(this.deviceNum, steps, async () => {
-      await this.updateDegrees();
-      callback();
-    });
+    io.accelStepperStep(this.deviceNum, steps, callback);
   }
 
   /**
@@ -190,61 +182,67 @@ export default class Joint {
    */
   private stepTo(position: number, callback = () => {}) {
     this.ensureHomed();
-    io.accelStepperTo(this.deviceNum, position, async () => {
-      await this.updateDegrees();
-      callback();
-    });
+    io.accelStepperTo(this.deviceNum, position, callback);
   }
 
   /**
    * Rotates the joint by a specified number of degrees relative to its current position.
    * @param degrees - The number of degrees to rotate.
-   * @param callback - A callback function to execute after the rotation is complete.
    */
-  public rotateDegrees(degrees: number, callback = () => {}) {
+  public async rotateDegrees(degrees: number) {
     this.ensureHomed();
-    this.ensureInRange(degrees + this.Degrees);
+    this.ensureInRange(degrees + (await this.reportDegrees()));
     const steps = Math.round((degrees / 360) * this.stepsPerRev);
     this.logger.info(`Rotating ${degrees} degrees`);
-    this.step(steps, callback);
+
+    return new Promise<void>((resolve) => {
+      this.step(steps, () => {
+        resolve();
+      });
+    });
   }
 
   /**
    * Rotates the joint to an absolute position specified in degrees.
    * @param degrees - The target position in degrees.
-   * @param callback - A callback function to execute after the rotation is complete.
    */
-  public rotateToDegrees(degrees: number, callback = () => {}) {
+  public async rotateToDegrees(degrees: number) {
     this.ensureHomed();
     this.ensureInRange(degrees);
     const steps = Math.round((degrees / 360) * this.stepsPerRev);
     this.logger.info(`Rotating to ${degrees} degrees`);
-    this.stepTo(steps, callback);
+    return new Promise<void>((resolve) => {
+      this.stepTo(steps, () => {
+        resolve();
+      });
+    });
   }
 
   /**
    * Homes the joint by moving it to its home position.
    * @param onSuccess - A callback function to execute after homing is successful.
    */
-  public home(onSuccess = () => {}) {
+  public async home(onSuccess = () => {}) {
     this.logger.info("Homing joint");
     this.isHoming = true;
 
-    this.rotateDegrees(-90, () => {
-      // if homing success, the motor's position will be set to 0
-      if (this.Degrees === 0) {
-        this.logger.info("Homing success");
-        this.homed = true;
-        setTimeout(() => {
-          this.rotateToDegrees(10);
-        }, 500);
-        onSuccess();
-      } else {
-        this.logger.error("Reached home position but switch not activated");
-      }
+    // Move to home position
+    // It might be interrupted by the home switch
+    await this.rotateDegrees(-90);
 
-      this.isHoming = false;
-    });
+    if (this.homeSwitchActivate) {
+      this.logger.info("Homing success");
+      this.setPositionZero();
+      this.homed = true;
+      setTimeout(() => {
+        this.rotateToDegrees(10);
+      }, 500);
+      onSuccess();
+    } else {
+      this.logger.error("Reached home position but switch not activated");
+    }
+
+    this.isHoming = false;
   }
 
   /**
@@ -272,24 +270,10 @@ export default class Joint {
   }
 
   /**
-   * Updates the internal degrees property with the current position.
-   */
-  private async updateDegrees() {
-    await this.reportDegrees()
-      .then((position) => {
-        this.degrees = position;
-      })
-      .catch((error) => {
-        this.logger.error("Failed to update degrees: ", error);
-      });
-  }
-
-  /**
    * Sets the current position of the joint to zero.
    */
   private setPositionZero() {
     io.accelStepperZero(this.deviceNum);
-    this.degrees = 0;
   }
 
   /**
@@ -299,9 +283,6 @@ export default class Joint {
     this.homeSwitchActivate = true;
     this.logger.warn("Home switch activated");
     this.stop();
-    if (this.isHoming) {
-      this.setPositionZero();
-    }
   }
 
   /**
@@ -317,9 +298,7 @@ export default class Joint {
    * @returns A string containing the joint's name, homed status, and current degrees.
    */
   public toString(): string {
-    return `Joint Name: ${this.Name}, Homed: ${
-      this.homed
-    }, Degrees: ${this.Degrees.toFixed(3)}`;
+    return `Joint Name: ${this.Name}, Homed: ${this.homed}`;
   }
 
   /**
