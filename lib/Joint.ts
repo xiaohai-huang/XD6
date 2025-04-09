@@ -1,100 +1,80 @@
-import five from "johnny-five";
+import { io } from "../main.ts";
 
-class Joint {
-  private stepper: five.Stepper;
-  private homeSwitch: five.Button;
-  private isHoming: boolean = false;
-  private homeSwitchPressed: boolean = false;
-  private isMoving: boolean = false;
+// Mapping of joint names (J1 - J6) to device numbers in accelStepper
+const jointToDeviceMap = {
+  J1: 0,
+  J2: 1,
+  J3: 2,
+  J4: 3,
+  J5: 4,
+  J6: 5,
+};
 
-  constructor({
-    stepPin,
-    dirPin,
-    homeSwitchPin,
-  }: {
-    stepPin: number;
-    dirPin: number;
-    homeSwitchPin: number;
-  }) {
-    this.stepper = new five.Stepper({
-      type: five.Stepper.TYPE.DRIVER,
-      stepsPerRev: 200,
-      pins: {
-        step: stepPin,
-        dir: dirPin,
-      },
+type JointName = keyof typeof jointToDeviceMap;
+
+type MotorConfig = {
+  NAME: string;
+  STEP_PIN: number;
+  DIR_PIN: number;
+  HOME_SWITCH_PIN: number;
+  STEPS_PER_REV: number;
+  MAX_ACCELERATION: number;
+  MAX_SPEED: number;
+};
+
+export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
+  J2: {
+    NAME: "J2",
+    STEP_PIN: 27,
+    DIR_PIN: 28,
+    HOME_SWITCH_PIN: 26,
+    STEPS_PER_REV: 400 * 50,
+    MAX_ACCELERATION: 500,
+    MAX_SPEED: 1500,
+  },
+};
+
+export default class Joint {
+  private deviceNum: number;
+  private stepsPerRev: number;
+
+  constructor(config: MotorConfig) {
+    this.deviceNum = jointToDeviceMap[config.NAME];
+    this.stepsPerRev = config.STEPS_PER_REV;
+
+    io.accelStepperConfig({
+      deviceNum: this.deviceNum,
+      type: io.STEPPER.TYPE.DRIVER,
+      stepPin: config.STEP_PIN,
+      directionPin: config.DIR_PIN,
     });
 
-    this.homeSwitch = new five.Button({
-      pin: homeSwitchPin,
-      isPullup: true,
-      invert: false,
-    });
-
-    this.homeSwitch.on("press", () => {
-      this.homeSwitchPressed = true;
-      if (this.isMoving) {
-        console.log("Limit switch hit! Stopping movement.");
-        this.isMoving = false; // Stop movement
-      }
-    });
-
-    this.homeSwitch.on("release", () => {
-      this.homeSwitchPressed = false;
-    });
+    this.setSpeed(config.MAX_SPEED);
+    this.setAcceleration(config.MAX_ACCELERATION);
   }
 
-  move(
-    steps: number,
-    direction: number,
-    accel: number,
-    decel: number,
-    callback: () => void
-  ) {
-    if (this.homeSwitchPressed) {
-      console.log("Cannot move: Limit switch is pressed.");
-      return;
+  static createJoint(name: JointName): Joint {
+    const config = MOTOR_CONFIGS[name];
+    if (!config) {
+      throw new Error(`Motor configuration for ${name} not found.`);
     }
-
-    this.isMoving = true;
-    this.stepper.step({ steps, direction, accel, decel }, () => {
-      this.isMoving = false;
-      callback();
-    });
+    return new Joint(config);
   }
 
-  onHomeSwitchActivate(callback: () => void) {
-    this.homeSwitch.on("press", callback);
+  setSpeed(speed: number) {
+    io.accelStepperSpeed(this.deviceNum, speed);
   }
 
-  onHomeSwitchDeactivate(callback: () => void) {
-    this.homeSwitch.on("release", callback);
+  setAcceleration(acceleration: number) {
+    io.accelStepperAcceleration(this.deviceNum, acceleration);
   }
 
-  home(callback: () => void) {
-    if (this.isHoming) return;
-    this.isHoming = true;
+  step(steps: number, callback: any) {
+    io.accelStepperStep(this.deviceNum, steps, callback);
+  }
 
-    const moveStep = () => {
-      if (this.homeSwitchPressed) {
-        console.log("Homing stopped: Limit switch is pressed.");
-        this.isHoming = false;
-        callback();
-        return;
-      }
-
-      this.stepper.step({ steps: 1, direction: 0, accel: 0, decel: 0 }, () => {
-        if (!this.homeSwitchPressed) {
-          moveStep();
-        } else {
-          this.isHoming = false;
-          callback();
-        }
-      });
-    };
-
-    moveStep();
+  rotateDegrees(degrees: number, callback: any) {
+    const steps = Math.round((degrees / 360) * this.stepsPerRev);
+    this.step(steps, callback);
   }
 }
-
-export default Joint;
