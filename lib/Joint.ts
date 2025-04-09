@@ -41,15 +41,19 @@ export default class Joint {
   private homeSwitch: five.Button;
   private isHoming: boolean = false;
   private homeSwitchActivate: boolean = false;
-  private _homed: boolean = false;
+  private homed: boolean = false;
   public get Homed() {
-    return this._homed;
+    return this.homed;
+  }
+  private name: string;
+  public get Name() {
+    return this.name;
   }
 
   constructor(config: MotorConfig) {
+    this.name = config.NAME;
     this.deviceNum = jointToDeviceMap[config.NAME];
     this.stepsPerRev = config.STEPS_PER_REV;
-
     io.accelStepperConfig({
       deviceNum: this.deviceNum,
       type: io.STEPPER.TYPE.DRIVER,
@@ -86,15 +90,26 @@ export default class Joint {
     io.accelStepperAcceleration(this.deviceNum, acceleration);
   }
 
+  private ensureHomed() {
+    if (!this.homed) {
+      throw new Error(
+        `Joint ${this.Name} must be homed before performing this action.`
+      );
+    }
+  }
+
   step(steps: number, callback = () => {}) {
+    this.ensureHomed();
     io.accelStepperStep(this.deviceNum, steps, callback);
   }
 
   stepTo(position: number, callback = () => {}) {
+    this.ensureHomed();
     io.accelStepperTo(this.deviceNum, position, callback);
   }
 
   rotateDegrees(degrees: number, callback = () => {}) {
+    this.ensureHomed();
     const steps = Math.round((degrees / 360) * this.stepsPerRev);
     this.step(steps, () => {
       callback();
@@ -102,6 +117,7 @@ export default class Joint {
   }
 
   rotateToDegrees(degrees: number, callback = () => {}) {
+    this.ensureHomed();
     const steps = Math.round((degrees / 360) * this.stepsPerRev);
     this.stepTo(steps, callback);
   }
@@ -116,7 +132,7 @@ export default class Joint {
         return;
       } else {
         console.error(
-          "WARN:Reached home position and still have not contacted the switch"
+          `WARN: Joint ${this.Name} reached home position and still have not contacted the switch`
         );
       }
     });
@@ -143,19 +159,19 @@ export default class Joint {
 
   private onHomeSwitchActivate() {
     this.homeSwitchActivate = true;
-    console.warn("Home switch activated");
+    console.warn(`Home switch activated for Joint ${this.Name}`);
     this.stop();
     if (this.isHoming) {
       this.isHoming = false;
-      this._homed = true;
+      this.homed = true;
       this.setPositionZero();
       this.rotateToDegrees(10);
-      console.log("Homing completed");
+      console.log(`Homing completed for Joint ${this.Name}`);
     }
   }
 
   private onHomeSwitchDeactivate() {
     this.homeSwitchActivate = false;
-    console.log("Home switch deactivated");
+    console.log(`Home switch deactivated for Joint ${this.Name}`);
   }
 }
