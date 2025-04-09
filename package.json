@@ -3,6 +3,7 @@
   "dependencies": {
     "firmata": "^2.3.0",
     "johnny-five": "^2.1.0",
+    "pino": "^9.6.0",
     "serialport": "^8.0.5"
   },
   "devDependencies": {

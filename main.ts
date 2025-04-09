@@ -10,7 +10,7 @@ type BoardType = Omit<five.Board, "io"> & {
   io: typeof io;
 };
 
-const board: BoardType = new five.Board({ io });
+const board: BoardType = new five.Board({ io, debug: true });
 
 board.on("ready", function () {
   const J2 = Joint.createJoint("J2");

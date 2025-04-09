@@ -1,5 +1,6 @@
 import { io } from "../main.ts";
 import five from "johnny-five";
+import pino from "pino";
 
 // Mapping of joint names (J1 - J6) to device numbers in accelStepper
 const jointToDeviceMap = {
@@ -21,6 +22,7 @@ type MotorConfig = {
   STEPS_PER_REV: number;
   MAX_ACCELERATION: number;
   MAX_SPEED: number;
+  RANGE: [number, number]; // range in degrees
 };
 
 export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
@@ -32,6 +34,7 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     STEPS_PER_REV: 400 * 50,
     MAX_ACCELERATION: 500,
     MAX_SPEED: 1500,
+    RANGE: [0, 180],
   },
 };
 
@@ -42,6 +45,11 @@ export default class Joint {
   private isHoming: boolean = false;
   private homeSwitchActivate: boolean = false;
   private homed: boolean = false;
+  private degrees: number = 0;
+  private logger: pino.Logger;
+  public get Degrees() {
+    return this.degrees;
+  }
   public get Homed() {
     return this.homed;
   }
@@ -72,9 +80,16 @@ export default class Joint {
 
     this.homeSwitch.on("press", this.onHomeSwitchActivate.bind(this));
     this.homeSwitch.on("release", this.onHomeSwitchDeactivate.bind(this));
+
+    this.logger = pino({
+      name: this.Name,
+      level: "debug",
+      base: { name: this.Name }, // Exclude pid and hostname by not including them in the base
+      timestamp: pino.stdTimeFunctions.isoTime, // Use ISO timestamp format
+    });
   }
 
-  static createJoint(name: JointName): Joint {
+  public static createJoint(name: JointName): Joint {
     const config = MOTOR_CONFIGS[name];
     if (!config) {
       throw new Error(`Motor configuration for ${name} not found.`);
@@ -100,19 +115,26 @@ export default class Joint {
     }
   }
 
-  step(steps: number, callback = () => {}) {
+  private step(steps: number, callback = () => {}) {
     this.ensureHomed();
-    io.accelStepperStep(this.deviceNum, steps, callback);
+    io.accelStepperStep(this.deviceNum, steps, () => {
+      this.updateDegrees();
+      callback();
+    });
   }
 
-  stepTo(position: number, callback = () => {}) {
+  private stepTo(position: number, callback = () => {}) {
     this.ensureHomed();
-    io.accelStepperTo(this.deviceNum, position, callback);
+    io.accelStepperTo(this.deviceNum, position, () => {
+      this.updateDegrees();
+      callback();
+    });
   }
 
   rotateDegrees(degrees: number, callback = () => {}) {
     this.ensureHomed();
     const steps = Math.round((degrees / 360) * this.stepsPerRev);
+    this.logger.info(`Rotating ${degrees} degrees`);
     this.step(steps, () => {
       callback();
     });
@@ -121,22 +143,22 @@ export default class Joint {
   rotateToDegrees(degrees: number, callback = () => {}) {
     this.ensureHomed();
     const steps = Math.round((degrees / 360) * this.stepsPerRev);
+    this.logger.info(`Rotating to ${degrees} degrees`);
     this.stepTo(steps, callback);
   }
 
   home(onSuccess = () => {}) {
+    this.logger.info("Homing joint");
     this.isHoming = true;
 
-    this.rotateToDegrees(-90, async () => {
-      const position = await this.reportPosition();
-      if (position === 0) {
+    this.rotateDegrees(-90, async () => {
+      if ((await this.reportDegrees()) === 0) {
+        this.logger.info("Homing success");
         onSuccess();
-        return;
       } else {
-        console.error(
-          `WARN: Joint ${this.Name} reached home position and still have not contacted the switch`
-        );
+        this.logger.error("Reached home position but switch not activated");
       }
+      this.isHoming = false;
     });
   }
 
@@ -144,36 +166,58 @@ export default class Joint {
     io.accelStepperStop(this.deviceNum);
   }
 
-  reportPosition(): Promise<number> {
+  private reportDegrees(): Promise<number> {
     return new Promise((resolve) => {
       io.accelStepperReportPosition(this.deviceNum, (position: number) => {
-        resolve(position);
+        const degrees = (position / this.stepsPerRev) * 360;
+        resolve(degrees);
       });
+    });
+  }
+
+  private updateDegrees() {
+    this.reportDegrees().then((position) => {
+      this.degrees = position;
     });
   }
 
   /**
    * Set the current position to zero
    */
-  setPositionZero() {
+  private setPositionZero() {
     io.accelStepperZero(this.deviceNum);
+    this.degrees = 0;
   }
 
   private onHomeSwitchActivate() {
     this.homeSwitchActivate = true;
-    console.warn(`Home switch activated for Joint ${this.Name}`);
+    this.logger.warn("Home switch activated");
     this.stop();
     if (this.isHoming) {
-      this.isHoming = false;
       this.homed = true;
       this.setPositionZero();
-      this.rotateToDegrees(10);
-      console.log(`Homing completed for Joint ${this.Name}`);
+      setTimeout(() => {
+        this.rotateToDegrees(10);
+      }, 500);
     }
   }
 
   private onHomeSwitchDeactivate() {
     this.homeSwitchActivate = false;
-    console.log(`Home switch deactivated for Joint ${this.Name}`);
+    this.logger.warn("Home switch deactivated");
+  }
+
+  public toString(): string {
+    return `Joint Name: ${this.Name}, Homed: ${
+      this.homed
+    }, Degrees: ${this.Degrees.toFixed(3)}`;
+  }
+
+  async LogInfo(): Promise<void> {
+    const position = await this.reportDegrees();
+    this.logger.info(
+      { homed: this.homed, degrees: position.toFixed(3) },
+      "Joint status"
+    );
   }
 }
