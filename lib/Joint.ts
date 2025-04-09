@@ -47,13 +47,16 @@ export default class Joint {
   private homed: boolean = false;
   private degrees: number = 0;
   private logger: pino.Logger;
+  private name: string;
+
   public get Degrees() {
     return this.degrees;
   }
+
   public get Homed() {
     return this.homed;
   }
-  private name: string;
+
   public get Name() {
     return this.name;
   }
@@ -62,33 +65,59 @@ export default class Joint {
     this.name = config.NAME;
     this.deviceNum = jointToDeviceMap[config.NAME];
     this.stepsPerRev = config.STEPS_PER_REV;
+
+    this.initializeStepper(config);
+    this.initializeHomeSwitch(config.HOME_SWITCH_PIN);
+    this.initializeLogger();
+  }
+
+  /**
+   * Initializes the stepper motor with the given configuration.
+   * @param config - The motor configuration.
+   */
+  private initializeStepper(config: MotorConfig) {
     io.accelStepperConfig({
       deviceNum: this.deviceNum,
       type: io.STEPPER.TYPE.DRIVER,
       stepPin: config.STEP_PIN,
       directionPin: config.DIR_PIN,
     });
-
     this.setSpeed(config.MAX_SPEED);
     this.setAcceleration(config.MAX_ACCELERATION);
+  }
 
+  /**
+   * Initializes the home switch for the joint.
+   * @param pin - The pin number for the home switch.
+   */
+  private initializeHomeSwitch(pin: number) {
     this.homeSwitch = new five.Button({
-      pin: config.HOME_SWITCH_PIN,
+      pin,
       isPullup: true,
       invert: false,
     });
-
     this.homeSwitch.on("press", this.onHomeSwitchActivate.bind(this));
     this.homeSwitch.on("release", this.onHomeSwitchDeactivate.bind(this));
+  }
 
+  /**
+   * Initializes the logger for the joint.
+   */
+  private initializeLogger() {
     this.logger = pino({
       name: this.Name,
       level: "debug",
-      base: { name: this.Name }, // Exclude pid and hostname by not including them in the base
-      timestamp: pino.stdTimeFunctions.isoTime, // Use ISO timestamp format
+      base: { name: this.Name },
+      timestamp: pino.stdTimeFunctions.isoTime,
     });
   }
 
+  /**
+   * Creates a new Joint instance based on the given joint name.
+   * @param name - The name of the joint (e.g., J1, J2, etc.).
+   * @returns A new Joint instance.
+   * @throws If the motor configuration for the given name is not found.
+   */
   public static createJoint(name: JointName): Joint {
     const config = MOTOR_CONFIGS[name];
     if (!config) {
@@ -97,16 +126,27 @@ export default class Joint {
     return new Joint(config);
   }
 
-  setSpeed(speed: number) {
+  /**
+   * Sets the speed of the stepper motor.
+   * @param speed - The speed in steps per second.
+   */
+  public setSpeed(speed: number) {
     io.accelStepperSpeed(this.deviceNum, speed);
   }
 
-  setAcceleration(acceleration: number) {
+  /**
+   * Sets the acceleration of the stepper motor.
+   * @param acceleration - The acceleration in steps per second squared.
+   */
+  public setAcceleration(acceleration: number) {
     io.accelStepperAcceleration(this.deviceNum, acceleration);
   }
 
+  /**
+   * Ensures the joint is homed before performing an action.
+   * @throws If the joint is not homed and not currently homing.
+   */
   private ensureHomed() {
-    // special case
     if (this.isHoming) return;
     if (!this.homed) {
       throw new Error(
@@ -115,8 +155,12 @@ export default class Joint {
     }
   }
 
+  /**
+   * Ensures the target degrees are within the allowed range.
+   * @param targetDegrees - The target position in degrees.
+   * @throws If the target degrees are out of range.
+   */
   private ensureInRange(targetDegrees: number) {
-    // special case
     if (this.isHoming) return;
     const [min, max] = MOTOR_CONFIGS[this.Name].RANGE;
     if (targetDegrees < min || targetDegrees > max) {
@@ -126,45 +170,51 @@ export default class Joint {
     }
   }
 
+  /**
+   * Moves the stepper motor by a specified number of steps.
+   * @param steps - The number of steps to move.
+   * @param callback - A callback function to execute after the movement is complete.
+   */
   private step(steps: number, callback = () => {}) {
     this.ensureHomed();
-    io.accelStepperStep(this.deviceNum, steps, () => {
-      this.updateDegrees();
+    io.accelStepperStep(this.deviceNum, steps, async () => {
+      await this.updateDegrees();
       callback();
     });
   }
 
+  /**
+   * Moves the stepper motor to a specific position in steps.
+   * @param position - The target position in steps.
+   * @param callback - A callback function to execute after the movement is complete.
+   */
   private stepTo(position: number, callback = () => {}) {
     this.ensureHomed();
-    io.accelStepperTo(this.deviceNum, position, () => {
-      this.updateDegrees();
+    io.accelStepperTo(this.deviceNum, position, async () => {
+      await this.updateDegrees();
       callback();
     });
   }
 
   /**
    * Rotates the joint by a specified number of degrees relative to its current position.
-   * Ensures the target position is within the allowed range.
    * @param degrees - The number of degrees to rotate.
    * @param callback - A callback function to execute after the rotation is complete.
    */
-  rotateDegrees(degrees: number, callback = () => {}) {
+  public rotateDegrees(degrees: number, callback = () => {}) {
     this.ensureHomed();
     this.ensureInRange(degrees + this.Degrees);
     const steps = Math.round((degrees / 360) * this.stepsPerRev);
     this.logger.info(`Rotating ${degrees} degrees`);
-    this.step(steps, () => {
-      callback();
-    });
+    this.step(steps, callback);
   }
 
   /**
    * Rotates the joint to an absolute position specified in degrees.
-   * Ensures the target position is within the allowed range.
    * @param degrees - The target position in degrees.
    * @param callback - A callback function to execute after the rotation is complete.
    */
-  rotateToDegrees(degrees: number, callback = () => {}) {
+  public rotateToDegrees(degrees: number, callback = () => {}) {
     this.ensureHomed();
     this.ensureInRange(degrees);
     const steps = Math.round((degrees / 360) * this.stepsPerRev);
@@ -172,77 +222,118 @@ export default class Joint {
     this.stepTo(steps, callback);
   }
 
-  home(onSuccess = () => {}) {
+  /**
+   * Homes the joint by moving it to its home position.
+   * @param onSuccess - A callback function to execute after homing is successful.
+   */
+  public home(onSuccess = () => {}) {
     this.logger.info("Homing joint");
     this.isHoming = true;
 
-    this.rotateDegrees(-90, async () => {
-      if ((await this.reportDegrees()) === 0) {
+    this.rotateDegrees(-90, () => {
+      // if homing success, the motor's position will be set to 0
+      if (this.Degrees === 0) {
         this.logger.info("Homing success");
+        this.homed = true;
+        setTimeout(() => {
+          this.rotateToDegrees(10);
+        }, 500);
         onSuccess();
       } else {
         this.logger.error("Reached home position but switch not activated");
       }
+
       this.isHoming = false;
     });
   }
 
-  stop() {
+  /**
+   * Stops the stepper motor immediately.
+   */
+  public stop() {
     io.accelStepperStop(this.deviceNum);
   }
 
+  /**
+   * Reports the current position of the joint in degrees.
+   * @returns A promise that resolves to the current position in degrees.
+   */
   private reportDegrees(): Promise<number> {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       io.accelStepperReportPosition(this.deviceNum, (position: number) => {
-        const degrees = (position / this.stepsPerRev) * 360;
-        resolve(degrees);
+        if (position === undefined) {
+          reject(new Error("Failed to report position"));
+        } else {
+          const degrees = (position / this.stepsPerRev) * 360;
+          resolve(degrees);
+        }
       });
     });
   }
 
-  private updateDegrees() {
-    this.reportDegrees().then((position) => {
-      this.degrees = position;
-    });
+  /**
+   * Updates the internal degrees property with the current position.
+   */
+  private async updateDegrees() {
+    await this.reportDegrees()
+      .then((position) => {
+        this.degrees = position;
+      })
+      .catch((error) => {
+        this.logger.error("Failed to update degrees: ", error);
+      });
   }
 
   /**
-   * Set the current position to zero
+   * Sets the current position of the joint to zero.
    */
   private setPositionZero() {
     io.accelStepperZero(this.deviceNum);
     this.degrees = 0;
   }
 
+  /**
+   * Handles the activation of the home switch.
+   */
   private onHomeSwitchActivate() {
     this.homeSwitchActivate = true;
     this.logger.warn("Home switch activated");
     this.stop();
     if (this.isHoming) {
-      this.homed = true;
       this.setPositionZero();
-      setTimeout(() => {
-        this.rotateToDegrees(10);
-      }, 500);
     }
   }
 
+  /**
+   * Handles the deactivation of the home switch.
+   */
   private onHomeSwitchDeactivate() {
     this.homeSwitchActivate = false;
     this.logger.warn("Home switch deactivated");
   }
 
+  /**
+   * Returns a string representation of the joint's status.
+   * @returns A string containing the joint's name, homed status, and current degrees.
+   */
   public toString(): string {
     return `Joint Name: ${this.Name}, Homed: ${
       this.homed
     }, Degrees: ${this.Degrees.toFixed(3)}`;
   }
 
-  async LogInfo(): Promise<void> {
-    const position = await this.reportDegrees();
-    this.logger.info(
-      { homed: this.homed, degrees: position.toFixed(3) },
-      "Joint status"
-    );
+  /**
+   * Logs the current status of the joint, including its homed status and position in degrees.
+   */
+  public async LogInfo(): Promise<void> {
+    try {
+      const position = await this.reportDegrees();
+      this.logger.info(
+        { homed: this.homed, degrees: position.toFixed(3) },
+        "Joint status"
+      );
+    } catch (error) {
+      this.logger.error("Failed to log joint info: ", error);
+    }
   }
 }
