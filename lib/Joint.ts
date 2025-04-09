@@ -28,13 +28,13 @@ type MotorConfig = {
 export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
   J2: {
     NAME: "J2",
-    STEP_PIN: 27,
-    DIR_PIN: 28,
-    HOME_SWITCH_PIN: 26,
+    STEP_PIN: 30,
+    DIR_PIN: 31,
+    HOME_SWITCH_PIN: 29,
     STEPS_PER_REV: 400 * 50,
     MAX_ACCELERATION: 500,
     MAX_SPEED: 1500,
-    RANGE: [0, 180],
+    RANGE: [0, 140],
   },
 };
 
@@ -47,6 +47,7 @@ export default class Joint {
   private homed: boolean = false;
   private logger: pino.Logger;
   private name: string;
+  private MAX_SPEED: number;
 
   public get Homed() {
     return this.homed;
@@ -71,6 +72,7 @@ export default class Joint {
    * @param config - The motor configuration.
    */
   private initializeStepper(config: MotorConfig) {
+    this.MAX_SPEED = config.MAX_SPEED;
     io.accelStepperConfig({
       deviceNum: this.deviceNum,
       type: io.STEPPER.TYPE.DRIVER,
@@ -226,10 +228,14 @@ export default class Joint {
     this.logger.info("Homing joint");
     this.isHoming = true;
 
+    // Set the speed to a lower value for homing
+    this.setSpeed(200);
+
     // Move to home position
     // It might be interrupted by the home switch
     await this.rotateDegrees(-90);
 
+    this.setSpeed(this.MAX_SPEED);
     if (this.homeSwitchActivate) {
       this.logger.info("Homing success");
       this.setPositionZero();
