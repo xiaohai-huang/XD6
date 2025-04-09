@@ -91,6 +91,8 @@ export default class Joint {
   }
 
   private ensureHomed() {
+    // special case
+    if (this.isHoming) return;
     if (!this.homed) {
       throw new Error(
         `Joint ${this.Name} must be homed before performing this action.`
@@ -125,7 +127,7 @@ export default class Joint {
   home(onSuccess = () => {}) {
     this.isHoming = true;
 
-    this.rotateToDegrees(-10, async () => {
+    this.rotateToDegrees(-90, async () => {
       const position = await this.reportPosition();
       if (position === 0) {
         onSuccess();
