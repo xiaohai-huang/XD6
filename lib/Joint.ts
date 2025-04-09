@@ -1,4 +1,5 @@
 import { io } from "../main.ts";
+import five from "johnny-five";
 
 // Mapping of joint names (J1 - J6) to device numbers in accelStepper
 const jointToDeviceMap = {
@@ -37,6 +38,13 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
 export default class Joint {
   private deviceNum: number;
   private stepsPerRev: number;
+  private homeSwitch: five.Button;
+  private isHoming: boolean = false;
+  private homeSwitchActivate: boolean = false;
+  private _homed: boolean = false;
+  public get Homed() {
+    return this._homed;
+  }
 
   constructor(config: MotorConfig) {
     this.deviceNum = jointToDeviceMap[config.NAME];
@@ -51,6 +59,15 @@ export default class Joint {
 
     this.setSpeed(config.MAX_SPEED);
     this.setAcceleration(config.MAX_ACCELERATION);
+
+    this.homeSwitch = new five.Button({
+      pin: config.HOME_SWITCH_PIN,
+      isPullup: true,
+      invert: false,
+    });
+
+    this.homeSwitch.on("press", this.onHomeSwitchActivate.bind(this));
+    this.homeSwitch.on("release", this.onHomeSwitchDeactivate.bind(this));
   }
 
   static createJoint(name: JointName): Joint {
@@ -69,12 +86,76 @@ export default class Joint {
     io.accelStepperAcceleration(this.deviceNum, acceleration);
   }
 
-  step(steps: number, callback: any) {
+  step(steps: number, callback = () => {}) {
     io.accelStepperStep(this.deviceNum, steps, callback);
   }
 
-  rotateDegrees(degrees: number, callback: any) {
+  stepTo(position: number, callback = () => {}) {
+    io.accelStepperTo(this.deviceNum, position, callback);
+  }
+
+  rotateDegrees(degrees: number, callback = () => {}) {
     const steps = Math.round((degrees / 360) * this.stepsPerRev);
-    this.step(steps, callback);
+    this.step(steps, () => {
+      callback();
+    });
+  }
+
+  rotateToDegrees(degrees: number, callback = () => {}) {
+    const steps = Math.round((degrees / 360) * this.stepsPerRev);
+    this.stepTo(steps, callback);
+  }
+
+  home(onSuccess = () => {}) {
+    this.isHoming = true;
+
+    this.rotateToDegrees(-10, async () => {
+      const position = await this.reportPosition();
+      if (position === 0) {
+        onSuccess();
+        return;
+      } else {
+        console.error(
+          "WARN:Reached home position and still have not contacted the switch"
+        );
+      }
+    });
+  }
+
+  stop() {
+    io.accelStepperStop(this.deviceNum);
+  }
+
+  reportPosition(): Promise<number> {
+    return new Promise((resolve) => {
+      io.accelStepperReportPosition(this.deviceNum, (position: number) => {
+        resolve(position);
+      });
+    });
+  }
+
+  /**
+   * Set the current position to zero
+   */
+  setPositionZero() {
+    io.accelStepperZero(this.deviceNum);
+  }
+
+  private onHomeSwitchActivate() {
+    this.homeSwitchActivate = true;
+    console.warn("Home switch activated");
+    this.stop();
+    if (this.isHoming) {
+      this.isHoming = false;
+      this._homed = true;
+      this.setPositionZero();
+      this.rotateToDegrees(10);
+      console.log("Homing completed");
+    }
+  }
+
+  private onHomeSwitchDeactivate() {
+    this.homeSwitchActivate = false;
+    console.log("Home switch deactivated");
   }
 }
