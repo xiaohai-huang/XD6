@@ -115,6 +115,17 @@ export default class Joint {
     }
   }
 
+  private ensureInRange(targetDegrees: number) {
+    // special case
+    if (this.isHoming) return;
+    const [min, max] = MOTOR_CONFIGS[this.Name].RANGE;
+    if (targetDegrees < min || targetDegrees > max) {
+      throw new Error(
+        `Target degrees ${targetDegrees} out of range [${min}, ${max}]`
+      );
+    }
+  }
+
   private step(steps: number, callback = () => {}) {
     this.ensureHomed();
     io.accelStepperStep(this.deviceNum, steps, () => {
@@ -131,8 +142,15 @@ export default class Joint {
     });
   }
 
+  /**
+   * Rotates the joint by a specified number of degrees relative to its current position.
+   * Ensures the target position is within the allowed range.
+   * @param degrees - The number of degrees to rotate.
+   * @param callback - A callback function to execute after the rotation is complete.
+   */
   rotateDegrees(degrees: number, callback = () => {}) {
     this.ensureHomed();
+    this.ensureInRange(degrees + this.Degrees);
     const steps = Math.round((degrees / 360) * this.stepsPerRev);
     this.logger.info(`Rotating ${degrees} degrees`);
     this.step(steps, () => {
@@ -140,8 +158,15 @@ export default class Joint {
     });
   }
 
+  /**
+   * Rotates the joint to an absolute position specified in degrees.
+   * Ensures the target position is within the allowed range.
+   * @param degrees - The target position in degrees.
+   * @param callback - A callback function to execute after the rotation is complete.
+   */
   rotateToDegrees(degrees: number, callback = () => {}) {
     this.ensureHomed();
+    this.ensureInRange(degrees);
     const steps = Math.round((degrees / 360) * this.stepsPerRev);
     this.logger.info(`Rotating to ${degrees} degrees`);
     this.stepTo(steps, callback);
