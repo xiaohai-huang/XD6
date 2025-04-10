@@ -11,6 +11,7 @@ type BoardType = Omit<five.Board, "io"> & {
 const board: BoardType = new five.Board({ io, debug: true });
 
 board.on("ready", function () {
+  const J1 = Joint.createJoint("J1");
   const J2 = Joint.createJoint("J2");
-  board.repl.inject({ J2 });
+  board.repl.inject({ J1, J2 });
 });

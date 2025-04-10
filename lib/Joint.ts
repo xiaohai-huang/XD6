@@ -25,7 +25,18 @@ type MotorConfig = {
   RANGE: [number, number]; // range in degrees
 };
 
+// todo: change max speed and max acceleration to degrees instead of steps
 export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
+  J1: {
+    NAME: "J1",
+    STEP_PIN: 27,
+    DIR_PIN: 28,
+    HOME_SWITCH_PIN: 26,
+    STEPS_PER_REV: 400 * 20,
+    MAX_ACCELERATION: 500,
+    MAX_SPEED: 400,
+    RANGE: [0, 30],
+  },
   J2: {
     NAME: "J2",
     STEP_PIN: 30,
@@ -34,7 +45,7 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     STEPS_PER_REV: 400 * 50,
     MAX_ACCELERATION: 500,
     MAX_SPEED: 1500,
-    RANGE: [0, 140],
+    RANGE: [0, 120],
   },
 };
 
