@@ -43,8 +43,8 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     DIR_PIN: 31,
     HOME_SWITCH_PIN: 29,
     STEPS_PER_REV: 400 * 50,
-    MAX_ACCELERATION: 30, // in degrees per second squared
-    MAX_SPEED: 90, // in degrees per second
+    MAX_ACCELERATION: 5, // in degrees per second squared
+    MAX_SPEED: 30, // in degrees per second
     RANGE: [0, 120],
   },
 };
@@ -128,6 +128,7 @@ export default class Joint {
       invert: false,
     });
     this.homeSwitch.on("press", this.onHomeSwitchActivate.bind(this));
+    // this.homeSwitch.on("hold", this.onHomeSwitchActivate.bind(this));
     this.homeSwitch.on("release", this.onHomeSwitchDeactivate.bind(this));
   }
 
@@ -229,7 +230,7 @@ export default class Joint {
     this.ensureHomed();
     this.ensureInRange(degrees + (await this.reportDegrees()));
     const steps = this.convertDegreesToSteps(degrees);
-    this.logger.info(`Rotating ${degrees} degrees`);
+    this.logger.info(`Rotating ${degrees} degrees, ${steps} steps`);
 
     return new Promise<void>((resolve) => {
       this.step(steps, () => {
@@ -246,7 +247,7 @@ export default class Joint {
     this.ensureHomed();
     this.ensureInRange(degrees);
     const steps = this.convertDegreesToSteps(degrees);
-    this.logger.info(`Rotating to ${degrees} degrees`);
+    this.logger.info(`Rotating to ${degrees} degrees, ${steps} steps`);
     return new Promise<void>((resolve) => {
       this.stepTo(steps, () => {
         resolve();
@@ -261,6 +262,15 @@ export default class Joint {
   public async home(onSuccess = () => {}) {
     this.logger.info("Homing joint");
     this.isHoming = true;
+
+    if (this.homeSwitchActivate) {
+      this.logger.info(
+        "Home switch is activate, rotate by 15 degrees and home again"
+      );
+      await this.rotateDegrees(15);
+      this.home();
+      return;
+    }
 
     // Set the speed to the homing speed
     this.logger.info(
