@@ -61,7 +61,7 @@ export default class Joint {
   private maxSpeedSteps: number;
   private maxAccelerationSteps: number;
   // In degrees per second
-  private static HOMING_SPEED: number = 5;
+  private static HOMING_SPEED: number = 2;
   public get Homed() {
     return this.homed;
   }
@@ -307,6 +307,7 @@ export default class Joint {
    * Stops the stepper motor immediately.
    */
   public stop() {
+    this.logger.info("Stopping joint");
     io.accelStepperStop(this.deviceNum);
   }
 
