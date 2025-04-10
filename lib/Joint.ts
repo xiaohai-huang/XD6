@@ -33,8 +33,8 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     DIR_PIN: 28,
     HOME_SWITCH_PIN: 26,
     STEPS_PER_REV: 400 * 20,
-    MAX_ACCELERATION: 500,
-    MAX_SPEED: 400,
+    MAX_ACCELERATION: 45, // in degrees per second squared
+    MAX_SPEED: 36, // in degrees per second
     RANGE: [0, 30],
   },
   J2: {
@@ -43,8 +43,8 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     DIR_PIN: 31,
     HOME_SWITCH_PIN: 29,
     STEPS_PER_REV: 400 * 50,
-    MAX_ACCELERATION: 500,
-    MAX_SPEED: 1500,
+    MAX_ACCELERATION: 30, // in degrees per second squared
+    MAX_SPEED: 90, // in degrees per second
     RANGE: [0, 120],
   },
 };
@@ -58,8 +58,10 @@ export default class Joint {
   private homed: boolean = false;
   private logger: pino.Logger;
   private name: string;
-  private MAX_SPEED: number;
-
+  private maxSpeedSteps: number;
+  private maxAccelerationSteps: number;
+  // In degrees per second
+  private static HOMING_SPEED: number = 5;
   public get Homed() {
     return this.homed;
   }
@@ -79,19 +81,40 @@ export default class Joint {
   }
 
   /**
+   * Converts a value in degrees to steps based on the steps per revolution.
+   * @param degrees - The value in degrees to convert.
+   * @returns The equivalent value in steps.
+   */
+  private convertDegreesToSteps(degrees: number): number {
+    return (degrees / 360) * this.stepsPerRev;
+  }
+
+  /**
    * Initializes the stepper motor with the given configuration.
    * @param config - The motor configuration.
    */
   private initializeStepper(config: MotorConfig) {
-    this.MAX_SPEED = config.MAX_SPEED;
+    this.maxSpeedSteps = this.convertDegreesToSteps(config.MAX_SPEED);
+    this.maxAccelerationSteps = this.convertDegreesToSteps(
+      config.MAX_ACCELERATION
+    );
+
     io.accelStepperConfig({
       deviceNum: this.deviceNum,
       type: io.STEPPER.TYPE.DRIVER,
       stepPin: config.STEP_PIN,
       directionPin: config.DIR_PIN,
     });
-    this.setSpeed(config.MAX_SPEED);
-    this.setAcceleration(config.MAX_ACCELERATION);
+    this.setSpeed(this.maxSpeedSteps);
+    this.setAcceleration(this.maxAccelerationSteps);
+  }
+
+  /**
+   * Resets the speed and acceleration of the stepper motor to their maximum values.
+   */
+  private resetSpeedAndAcceleration() {
+    this.setSpeed(this.maxSpeedSteps);
+    this.setAcceleration(this.maxAccelerationSteps);
   }
 
   /**
@@ -205,7 +228,7 @@ export default class Joint {
   public async rotateDegrees(degrees: number) {
     this.ensureHomed();
     this.ensureInRange(degrees + (await this.reportDegrees()));
-    const steps = Math.round((degrees / 360) * this.stepsPerRev);
+    const steps = this.convertDegreesToSteps(degrees);
     this.logger.info(`Rotating ${degrees} degrees`);
 
     return new Promise<void>((resolve) => {
@@ -222,7 +245,7 @@ export default class Joint {
   public async rotateToDegrees(degrees: number) {
     this.ensureHomed();
     this.ensureInRange(degrees);
-    const steps = Math.round((degrees / 360) * this.stepsPerRev);
+    const steps = this.convertDegreesToSteps(degrees);
     this.logger.info(`Rotating to ${degrees} degrees`);
     return new Promise<void>((resolve) => {
       this.stepTo(steps, () => {
@@ -239,14 +262,22 @@ export default class Joint {
     this.logger.info("Homing joint");
     this.isHoming = true;
 
-    // Set the speed to a lower value for homing
-    this.setSpeed(200);
+    // Set the speed to the homing speed
+    this.logger.info(
+      `Setting homing speed to ${Joint.HOMING_SPEED} degrees per second and acceleration to 0`
+    );
+    const homingSpeedSteps = this.convertDegreesToSteps(Joint.HOMING_SPEED);
+    this.setSpeed(homingSpeedSteps);
+    this.setAcceleration(0);
 
     // Move to home position
     // It might be interrupted by the home switch
+    this.logger.info("Moving to home position");
     await this.rotateDegrees(-90);
 
-    this.setSpeed(this.MAX_SPEED);
+    this.logger.info("Reset speed and acceleration");
+    this.resetSpeedAndAcceleration();
+
     if (this.homeSwitchActivate) {
       this.logger.info("Homing success");
       this.setPositionZero();
