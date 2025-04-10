@@ -45,7 +45,7 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     STEPS_PER_REV: 400 * 50,
     MAX_ACCELERATION: 5, // in degrees per second squared
     MAX_SPEED: 30, // in degrees per second
-    RANGE: [0, 120],
+    RANGE: [0, 128],
   },
 };
 
@@ -60,8 +60,14 @@ export default class Joint {
   private name: string;
   private maxSpeedSteps: number;
   private maxAccelerationSteps: number;
+  // in degrees per second
+  private currentSpeed: number = 0;
+  // in degrees per second squared
+  private currentAcceleration: number = 0;
   // In degrees per second
-  private static HOMING_SPEED: number = 2;
+  private static HOMING_SPEED: number = 4;
+
+  // Current Degrees, will be updated after movement is done of stopped
   private degrees: number = 0;
   public get Degrees() {
     return this.degrees;
@@ -79,9 +85,9 @@ export default class Joint {
     this.deviceNum = jointToDeviceMap[config.NAME];
     this.stepsPerRev = config.STEPS_PER_REV;
 
+    this.initializeLogger();
     this.initializeStepper(config);
     this.initializeHomeSwitch(config.HOME_SWITCH_PIN);
-    this.initializeLogger();
 
     io.on(`stepper-done-${this.deviceNum}`, (position: any) => {
       this.degrees = this.convertStepsToDegrees(position);
@@ -128,8 +134,6 @@ export default class Joint {
    * Resets the speed and acceleration of the stepper motor to their maximum values.
    */
   private async resetSpeedAndAcceleration() {
-    this.setAcceleration(0);
-    await this.rotateDegrees(0);
     this.setSpeed(this.maxSpeedSteps);
     this.setAcceleration(this.maxAccelerationSteps);
   }
@@ -181,6 +185,10 @@ export default class Joint {
    */
   public setSpeed(speed: number) {
     io.accelStepperSpeed(this.deviceNum, speed);
+    this.currentSpeed = this.convertStepsToDegrees(speed);
+    this.logger.info(
+      `Setting speed to ${this.currentSpeed} degrees per second`
+    );
   }
 
   /**
@@ -189,6 +197,10 @@ export default class Joint {
    */
   public setAcceleration(acceleration: number) {
     io.accelStepperAcceleration(this.deviceNum, acceleration);
+    this.currentAcceleration = this.convertStepsToDegrees(acceleration);
+    this.logger.info(
+      `Setting acceleration to ${this.currentAcceleration} degrees per second squared`
+    );
   }
 
   /**
@@ -225,7 +237,8 @@ export default class Joint {
    * @param callback - A callback function to execute after the movement is complete.
    */
   private step(steps: number, callback = () => {}) {
-    this.ensureHomed();
+    // special case for steps 0, as it is like not moving
+    if (steps !== 0) this.ensureHomed();
     io.accelStepperStep(this.deviceNum, steps, callback);
   }
 
@@ -244,7 +257,8 @@ export default class Joint {
    * @param degrees - The number of degrees to rotate.
    */
   public async rotateDegrees(degrees: number) {
-    this.ensureHomed();
+    // special case for degrees 0, as it is like not moving
+    if (degrees !== 0) this.ensureHomed();
     this.ensureInRange(degrees + (await this.reportDegrees()));
     const steps = this.convertDegreesToSteps(degrees);
     this.logger.info(`Rotating ${degrees} degrees, ${steps} steps`);
@@ -285,7 +299,7 @@ export default class Joint {
         "Home switch is activate, rotate by 15 degrees and home again"
       );
       await this.rotateDegrees(15);
-      this.home();
+      await this.home();
       return;
     }
 
@@ -301,6 +315,7 @@ export default class Joint {
     // It might be interrupted by the home switch
     this.logger.info("Moving to home position");
     await this.rotateDegrees(-90);
+    await this.stop();
 
     this.logger.info("Reset speed and acceleration");
     await this.resetSpeedAndAcceleration();
@@ -309,9 +324,8 @@ export default class Joint {
       this.logger.info("Homing success");
       this.setPositionZero();
       this.homed = true;
-      setTimeout(() => {
-        this.rotateToDegrees(10);
-      }, 500);
+      await wait(500);
+      this.rotateToDegrees(10);
       onSuccess();
     } else {
       this.logger.error("Reached home position but switch not activated");
@@ -323,9 +337,16 @@ export default class Joint {
   /**
    * Stops the stepper motor immediately.
    */
-  public stop() {
+  public async stop() {
     this.logger.info("Stopping joint");
     io.accelStepperStop(this.deviceNum);
+    // need to cancel the previous movement's acceleration
+    this.logger.info("[START: Canceling previous acceleration]");
+    const previousAcceleration = this.currentAcceleration;
+    this.setAcceleration(0);
+    await this.rotateDegrees(0);
+    this.setAcceleration(this.convertDegreesToSteps(previousAcceleration));
+    this.logger.info("[END: Finish canceling previous acceleration]");
   }
 
   /**
@@ -350,6 +371,7 @@ export default class Joint {
    */
   private setPositionZero() {
     io.accelStepperZero(this.deviceNum);
+    this.logger.info("Setting position to zero");
   }
 
   /**
@@ -374,7 +396,7 @@ export default class Joint {
    * @returns A string containing the joint's name, homed status, and current degrees.
    */
   public toString(): string {
-    return `Name: ${this.Name}, Homed: ${this.homed}, Degrees: ${this.degrees}`;
+    return `Name: ${this.Name}, Homed: ${this.homed}, Degrees: ${this.degrees}. Speed: ${this.currentSpeed}, Acceleration: ${this.currentAcceleration}`;
   }
 
   /**
@@ -391,4 +413,8 @@ export default class Joint {
       this.logger.error("Failed to log joint info: ", error);
     }
   }
+}
+
+async function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
