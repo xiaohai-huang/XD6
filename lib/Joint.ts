@@ -62,6 +62,10 @@ export default class Joint {
   private maxAccelerationSteps: number;
   // In degrees per second
   private static HOMING_SPEED: number = 2;
+  private degrees: number = 0;
+  public get Degrees() {
+    return this.degrees;
+  }
   public get Homed() {
     return this.homed;
   }
@@ -78,6 +82,13 @@ export default class Joint {
     this.initializeStepper(config);
     this.initializeHomeSwitch(config.HOME_SWITCH_PIN);
     this.initializeLogger();
+
+    io.on(`stepper-done-${this.deviceNum}`, (position: any) => {
+      this.degrees = this.convertStepsToDegrees(position);
+      this.logger.info(
+        `Stepper done, steps: ${position}, degrees: ${this.degrees}`
+      );
+    });
   }
 
   /**
@@ -87,6 +98,10 @@ export default class Joint {
    */
   private convertDegreesToSteps(degrees: number): number {
     return (degrees / 360) * this.stepsPerRev;
+  }
+
+  private convertStepsToDegrees(steps: number): number {
+    return (steps / this.stepsPerRev) * 360;
   }
 
   /**
@@ -112,7 +127,9 @@ export default class Joint {
   /**
    * Resets the speed and acceleration of the stepper motor to their maximum values.
    */
-  private resetSpeedAndAcceleration() {
+  private async resetSpeedAndAcceleration() {
+    this.setAcceleration(0);
+    await this.rotateDegrees(0);
     this.setSpeed(this.maxSpeedSteps);
     this.setAcceleration(this.maxAccelerationSteps);
   }
@@ -286,7 +303,7 @@ export default class Joint {
     await this.rotateDegrees(-90);
 
     this.logger.info("Reset speed and acceleration");
-    this.resetSpeedAndAcceleration();
+    await this.resetSpeedAndAcceleration();
 
     if (this.homeSwitchActivate) {
       this.logger.info("Homing success");
@@ -357,7 +374,7 @@ export default class Joint {
    * @returns A string containing the joint's name, homed status, and current degrees.
    */
   public toString(): string {
-    return `Joint Name: ${this.Name}, Homed: ${this.homed}`;
+    return `Name: ${this.Name}, Homed: ${this.homed}, Degrees: ${this.degrees}`;
   }
 
   /**
