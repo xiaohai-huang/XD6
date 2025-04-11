@@ -51,15 +51,16 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
 
 export default class Joint {
   private deviceNum: number;
-  private stepsPerRev: number;
+  private STEPS_PER_REV: number;
   private homeSwitch: five.Button;
   private isHoming: boolean = false;
   private homeSwitchActivate: boolean = false;
   private homed: boolean = false;
   private logger: pino.Logger;
   private name: string;
-  private maxSpeedSteps: number;
-  private maxAccelerationSteps: number;
+  private MAX_SPEED_IN_STEPS: number;
+  private MAX_ACCELERATION_IN_STEPS: number;
+  private RANGE: [number, number];
   // in degrees per second
   private currentSpeed: number = 0;
   // in degrees per second squared
@@ -83,7 +84,6 @@ export default class Joint {
   constructor(config: MotorConfig) {
     this.name = config.NAME;
     this.deviceNum = jointToDeviceMap[config.NAME];
-    this.stepsPerRev = config.STEPS_PER_REV;
 
     this.initializeLogger();
     this.initializeStepper(config);
@@ -103,11 +103,11 @@ export default class Joint {
    * @returns The equivalent value in steps.
    */
   private convertDegreesToSteps(degrees: number): number {
-    return (degrees / 360) * this.stepsPerRev;
+    return (degrees / 360) * this.STEPS_PER_REV;
   }
 
   private convertStepsToDegrees(steps: number): number {
-    return (steps / this.stepsPerRev) * 360;
+    return (steps / this.STEPS_PER_REV) * 360;
   }
 
   /**
@@ -115,8 +115,10 @@ export default class Joint {
    * @param config - The motor configuration.
    */
   private initializeStepper(config: MotorConfig) {
-    this.maxSpeedSteps = this.convertDegreesToSteps(config.MAX_SPEED);
-    this.maxAccelerationSteps = this.convertDegreesToSteps(
+    this.RANGE = config.RANGE;
+    this.STEPS_PER_REV = config.STEPS_PER_REV;
+    this.MAX_SPEED_IN_STEPS = this.convertDegreesToSteps(config.MAX_SPEED);
+    this.MAX_ACCELERATION_IN_STEPS = this.convertDegreesToSteps(
       config.MAX_ACCELERATION
     );
 
@@ -126,16 +128,16 @@ export default class Joint {
       stepPin: config.STEP_PIN,
       directionPin: config.DIR_PIN,
     });
-    this.setSpeed(this.maxSpeedSteps);
-    this.setAcceleration(this.maxAccelerationSteps);
+    this.setSpeed(this.MAX_SPEED_IN_STEPS);
+    this.setAcceleration(this.MAX_ACCELERATION_IN_STEPS);
   }
 
   /**
    * Resets the speed and acceleration of the stepper motor to their maximum values.
    */
   private async resetSpeedAndAcceleration() {
-    this.setSpeed(this.maxSpeedSteps);
-    this.setAcceleration(this.maxAccelerationSteps);
+    this.setSpeed(this.MAX_SPEED_IN_STEPS);
+    this.setAcceleration(this.MAX_ACCELERATION_IN_STEPS);
   }
 
   /**
@@ -223,7 +225,7 @@ export default class Joint {
    */
   private ensureInRange(targetDegrees: number) {
     if (this.isHoming) return;
-    const [min, max] = MOTOR_CONFIGS[this.Name].RANGE;
+    const [min, max] = this.RANGE;
     if (targetDegrees < min || targetDegrees > max) {
       throw new Error(
         `Target degrees ${targetDegrees} out of range [${min}, ${max}]`
@@ -314,7 +316,8 @@ export default class Joint {
     // Move to home position
     // It might be interrupted by the home switch
     this.logger.info("Moving to home position");
-    await this.rotateDegrees(-90);
+    const maxRange = this.RANGE[1] + 5;
+    await this.rotateDegrees(-maxRange);
     await this.stop();
 
     this.logger.info("Reset speed and acceleration");
@@ -359,7 +362,7 @@ export default class Joint {
         if (position === undefined) {
           reject(new Error("Failed to report position"));
         } else {
-          const degrees = (position / this.stepsPerRev) * 360;
+          const degrees = (position / this.STEPS_PER_REV) * 360;
           resolve(degrees);
         }
       });
