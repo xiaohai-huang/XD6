@@ -32,10 +32,10 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     STEP_PIN: 27,
     DIR_PIN: 28,
     HOME_SWITCH_PIN: 26,
-    STEPS_PER_REV: 400 * 10 * 4,
+    STEPS_PER_REV: 800 * 10 * 4, //
     MAX_ACCELERATION: 4, // in degrees per second squared
     MAX_SPEED: 10, // in degrees per second
-    RANGE: [0, 180],
+    RANGE: [0, 200],
   },
   J2: {
     NAME: "J2",
