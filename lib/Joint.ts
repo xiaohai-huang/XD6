@@ -258,7 +258,7 @@ export default class Joint {
    * Rotates the joint by a specified number of degrees relative to its current position.
    * @param degrees - The number of degrees to rotate.
    */
-  public async rotateDegrees(degrees: number) {
+  public async rotateBy(degrees: number) {
     // special case for degrees 0, as it is like not moving
     if (degrees !== 0) this.ensureHomed();
     this.ensureInRange(degrees + (await this.reportDegrees()));
@@ -276,7 +276,7 @@ export default class Joint {
    * Rotates the joint to an absolute position specified in degrees.
    * @param degrees - The target position in degrees.
    */
-  public async rotateToDegrees(degrees: number) {
+  public async rotateTo(degrees: number) {
     this.ensureHomed();
     this.ensureInRange(degrees);
     const steps = this.convertDegreesToSteps(degrees);
@@ -300,7 +300,7 @@ export default class Joint {
       this.logger.info(
         "Home switch is activate, rotate by 15 degrees and home again"
       );
-      await this.rotateDegrees(15);
+      await this.rotateBy(15);
       await this.home();
       return;
     }
@@ -317,7 +317,7 @@ export default class Joint {
     // It might be interrupted by the home switch
     this.logger.info("Moving to home position");
     const maxRange = this.RANGE[1] + 5;
-    await this.rotateDegrees(-maxRange);
+    await this.rotateBy(-maxRange);
     await this.stop();
 
     this.logger.info("Reset speed and acceleration");
@@ -328,7 +328,7 @@ export default class Joint {
       this.setPositionZero();
       this.homed = true;
       await wait(500);
-      this.rotateToDegrees(10);
+      this.rotateTo(10);
       onSuccess();
     } else {
       this.logger.error("Reached home position but switch not activated");
@@ -347,7 +347,7 @@ export default class Joint {
     this.logger.info("[START: Canceling previous acceleration]");
     const previousAcceleration = this.currentAcceleration;
     this.setAcceleration(0);
-    await this.rotateDegrees(0);
+    await this.rotateBy(0);
     this.setAcceleration(this.convertDegreesToSteps(previousAcceleration));
     this.logger.info("[END: Finish canceling previous acceleration]");
   }
