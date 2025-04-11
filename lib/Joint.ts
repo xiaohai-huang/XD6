@@ -20,7 +20,13 @@ type MotorConfig = {
   DIR_PIN: number;
   HOME_SWITCH_PIN: number;
   STEPS_PER_REV: number;
+  /**
+   * In degrees
+   */
   MAX_ACCELERATION: number;
+  /**
+   * In degrees
+   */
   MAX_SPEED: number;
   RANGE: [number, number]; // range in degrees
 };
@@ -58,14 +64,16 @@ export default class Joint {
   private homed: boolean = false;
   private logger: pino.Logger;
   private name: string;
-  private MAX_SPEED_IN_STEPS: number;
-  private MAX_ACCELERATION_IN_STEPS: number;
+  private MAX_SPEED_IN_DEGREES: number;
+  private MAX_ACCELERATION_IN_DEGREES: number;
   private RANGE: [number, number];
   // in degrees per second
-  private currentSpeed: number = 0;
+  private currentSpeedInDegrees: number = 0;
   // in degrees per second squared
   private currentAcceleration: number = 0;
-  // In degrees per second
+  /**
+   * In degrees per second
+   */
   private static HOMING_SPEED: number = 4;
 
   // Current Degrees, will be updated after movement is done of stopped
@@ -117,10 +125,6 @@ export default class Joint {
   private initializeStepper(config: MotorConfig) {
     this.RANGE = config.RANGE;
     this.STEPS_PER_REV = config.STEPS_PER_REV;
-    this.MAX_SPEED_IN_STEPS = this.convertDegreesToSteps(config.MAX_SPEED);
-    this.MAX_ACCELERATION_IN_STEPS = this.convertDegreesToSteps(
-      config.MAX_ACCELERATION
-    );
 
     io.accelStepperConfig({
       deviceNum: this.deviceNum,
@@ -128,16 +132,16 @@ export default class Joint {
       stepPin: config.STEP_PIN,
       directionPin: config.DIR_PIN,
     });
-    this.setSpeed(this.MAX_SPEED_IN_STEPS);
-    this.setAcceleration(this.MAX_ACCELERATION_IN_STEPS);
+    this.setSpeed(this.MAX_SPEED_IN_DEGREES);
+    this.setAcceleration(this.MAX_ACCELERATION_IN_DEGREES);
   }
 
   /**
    * Resets the speed and acceleration of the stepper motor to their maximum values.
    */
   private async resetSpeedAndAcceleration() {
-    this.setSpeed(this.MAX_SPEED_IN_STEPS);
-    this.setAcceleration(this.MAX_ACCELERATION_IN_STEPS);
+    this.setSpeed(this.MAX_SPEED_IN_DEGREES);
+    this.setAcceleration(this.MAX_ACCELERATION_IN_DEGREES);
   }
 
   /**
@@ -183,23 +187,25 @@ export default class Joint {
 
   /**
    * Sets the speed of the stepper motor.
-   * @param speed - The speed in steps per second.
+   * @param speedInDegrees - The speed in degrees per second.
    */
-  public setSpeed(speed: number) {
-    io.accelStepperSpeed(this.deviceNum, speed);
-    this.currentSpeed = this.convertStepsToDegrees(speed);
-    this.logger.info(
-      `Setting speed to ${this.currentSpeed} degrees per second`
-    );
+  public setSpeed(speedInDegrees: number) {
+    const steps = this.convertDegreesToSteps(speedInDegrees);
+    io.accelStepperSpeed(this.deviceNum, steps);
+    this.currentSpeedInDegrees = speedInDegrees;
+    this.logger.info(`Setting speed to ${speedInDegrees} degrees per second`);
   }
 
   /**
    * Sets the acceleration of the stepper motor.
-   * @param acceleration - The acceleration in steps per second squared.
+   * @param acceleration - The acceleration in degrees per second squared.
    */
-  public setAcceleration(acceleration: number) {
-    io.accelStepperAcceleration(this.deviceNum, acceleration);
-    this.currentAcceleration = this.convertStepsToDegrees(acceleration);
+  public setAcceleration(accelerationInDegrees: number) {
+    const accelerationInSteps = this.convertDegreesToSteps(
+      accelerationInDegrees
+    );
+    io.accelStepperAcceleration(this.deviceNum, accelerationInSteps);
+    this.currentAcceleration = accelerationInDegrees;
     this.logger.info(
       `Setting acceleration to ${this.currentAcceleration} degrees per second squared`
     );
@@ -309,8 +315,8 @@ export default class Joint {
     this.logger.info(
       `Setting homing speed to ${Joint.HOMING_SPEED} degrees per second and acceleration to 0`
     );
-    const homingSpeedSteps = this.convertDegreesToSteps(Joint.HOMING_SPEED);
-    this.setSpeed(homingSpeedSteps);
+
+    this.setSpeed(Joint.HOMING_SPEED);
     this.setAcceleration(0);
 
     // Move to home position
@@ -348,7 +354,7 @@ export default class Joint {
     const previousAcceleration = this.currentAcceleration;
     this.setAcceleration(0);
     await this.rotateBy(0);
-    this.setAcceleration(this.convertDegreesToSteps(previousAcceleration));
+    this.setAcceleration(previousAcceleration);
     this.logger.info("[END: Finish canceling previous acceleration]");
   }
 
@@ -399,7 +405,7 @@ export default class Joint {
    * @returns A string containing the joint's name, homed status, and current degrees.
    */
   public toString(): string {
-    return `Name: ${this.Name}, Homed: ${this.homed}, Degrees: ${this.degrees}. Speed: ${this.currentSpeed}, Acceleration: ${this.currentAcceleration}`;
+    return `Name: ${this.Name}, Homed: ${this.homed}, Degrees: ${this.degrees}. Speed: ${this.currentSpeedInDegrees}, Acceleration: ${this.currentAcceleration}`;
   }
 
   /**
