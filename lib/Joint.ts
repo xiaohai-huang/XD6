@@ -125,7 +125,8 @@ export default class Joint {
   private initializeStepper(config: MotorConfig) {
     this.RANGE = config.RANGE;
     this.STEPS_PER_REV = config.STEPS_PER_REV;
-
+    this.MAX_SPEED_IN_DEGREES = config.MAX_SPEED;
+    this.MAX_ACCELERATION_IN_DEGREES = config.MAX_ACCELERATION;
     io.accelStepperConfig({
       deviceNum: this.deviceNum,
       type: io.STEPPER.TYPE.DRIVER,
