@@ -338,7 +338,9 @@ export default class Joint {
       this.rotateTo(10);
       onSuccess();
     } else {
-      this.logger.error("Reached home position but switch not activated");
+      this.logger.error(
+        "Have traveled too far, and home switch is not activated"
+      );
     }
 
     this.isHoming = false;
