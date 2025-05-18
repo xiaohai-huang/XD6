@@ -372,15 +372,16 @@ export default class Joint {
 
     this.logger.info("Reset speed and acceleration");
     await this.resetSpeedAndAcceleration();
+    this.setPositionZero();
 
     if (this.homeSwitchActivate) {
       this.logger.info("Homing success");
-      this.setPositionZero();
       this.homed = true;
       await wait(500);
       this.rotateTo(10);
       onSuccess();
     } else {
+      this.homed = false;
       this.logger.error(
         "Have traveled too far, and home switch is not activated"
       );
