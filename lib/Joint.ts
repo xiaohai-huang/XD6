@@ -28,7 +28,10 @@ type MotorConfig = {
    * In degrees
    */
   MAX_SPEED: number;
-  IDLE_DEGREE: number;
+  /**
+   * In degrees, the position where the motor is at rest
+   */
+  READY_POSITION: number;
   RANGE: [number, number]; // range in degrees
 };
 
@@ -42,7 +45,7 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     STEPS_PER_REV: 800 * 10 * 4, //
     MAX_ACCELERATION: 4, // in degrees per second squared
     MAX_SPEED: 10, // in degrees per second
-    IDLE_DEGREE: 0,
+    READY_POSITION: 0,
     RANGE: [0, 200],
   },
   J2: {
@@ -53,7 +56,7 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     STEPS_PER_REV: 800 * 50,
     MAX_ACCELERATION: 5, // in degrees per second squared
     MAX_SPEED: 30, // in degrees per second
-    IDLE_DEGREE: 0,
+    READY_POSITION: 0,
     RANGE: [0, 128],
   },
   J3: {
@@ -64,7 +67,7 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     STEPS_PER_REV: 800 * 50,
     MAX_ACCELERATION: 20, // in degrees per second squared
     MAX_SPEED: 30, // in degrees per second
-    IDLE_DEGREE: 42.291,
+    READY_POSITION: 42.291,
     RANGE: [0, 140],
   },
   J4: {
@@ -73,9 +76,9 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     DIR_PIN: 14,
     HOME_SWITCH_PIN: 2,
     STEPS_PER_REV: 800 * 10 * 2,
-    MAX_ACCELERATION: 5,
+    MAX_ACCELERATION: 20,
     MAX_SPEED: 40,
-    IDLE_DEGREE: 209.655,
+    READY_POSITION: 209.655,
     RANGE: [0, 325],
   },
   J5: {
@@ -86,7 +89,7 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     STEPS_PER_REV: 15240,
     MAX_ACCELERATION: 50,
     MAX_SPEED: 60,
-    IDLE_DEGREE: 90,
+    READY_POSITION: 90,
     RANGE: [0, 180],
   },
   J6: {
@@ -97,7 +100,7 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     STEPS_PER_REV: 800,
     MAX_ACCELERATION: 5,
     MAX_SPEED: 30,
-    IDLE_DEGREE: 0,
+    READY_POSITION: 0,
     RANGE: [0, 120],
   },
 };
@@ -122,6 +125,8 @@ export default class Joint {
    * In degrees per second
    */
   private static HOMING_SPEED: number = 4;
+
+  private READY_POSITION: number = 0; // in degrees
 
   // Current Degrees, will be updated after movement is done of stopped
   private degrees: number = 0;
@@ -164,6 +169,7 @@ export default class Joint {
    */
   private initializeStepper(config: MotorConfig) {
     this.RANGE = config.RANGE;
+    this.READY_POSITION = config.READY_POSITION;
     this.STEPS_PER_REV = config.STEPS_PER_REV;
     this.MAX_SPEED_IN_DEGREES = config.MAX_SPEED;
     this.MAX_ACCELERATION_IN_DEGREES = config.MAX_ACCELERATION;
@@ -378,7 +384,7 @@ export default class Joint {
       this.logger.info("Homing success");
       this.homed = true;
       await wait(500);
-      this.rotateTo(10);
+      this.rotateTo(this.READY_POSITION);
       onSuccess();
     } else {
       this.homed = false;
