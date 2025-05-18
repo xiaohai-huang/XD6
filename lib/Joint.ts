@@ -76,7 +76,7 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     DIR_PIN: 14,
     HOME_SWITCH_PIN: 2,
     STEPS_PER_REV: 800 * 10 * 2,
-    MAX_ACCELERATION: 20,
+    MAX_ACCELERATION: 30,
     MAX_SPEED: 40,
     READY_POSITION: 209.655,
     RANGE: [0, 325],
@@ -124,9 +124,12 @@ export default class Joint {
   /**
    * In degrees per second
    */
-  private static HOMING_SPEED: number = 4;
+  private static HOMING_SPEED: number = 5;
 
-  private READY_POSITION: number = 0; // in degrees
+  /**
+   * In degrees
+   */
+  private READY_POSITION: number = 0;
 
   // Current Degrees, will be updated after movement is done of stopped
   private degrees: number = 0;
@@ -474,6 +477,10 @@ export default class Joint {
     } catch (error) {
       this.logger.error("Failed to log joint info: ", error);
     }
+  }
+
+  public gotToReadyPosition() {
+    return this.rotateTo(this.READY_POSITION);
   }
 }
 
