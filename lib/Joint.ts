@@ -3,7 +3,7 @@ import five from "johnny-five";
 import pino from "pino";
 
 // Mapping of joint names (J1 - J6) to device numbers in accelStepper
-const jointToDeviceMap = {
+export const JointToDeviceMap = {
   J1: 0,
   J2: 1,
   J3: 2,
@@ -12,7 +12,7 @@ const jointToDeviceMap = {
   J6: 5,
 };
 
-type JointName = keyof typeof jointToDeviceMap;
+type JointName = keyof typeof JointToDeviceMap;
 
 type MotorConfig = {
   NAME: string;
@@ -28,6 +28,7 @@ type MotorConfig = {
    * In degrees
    */
   MAX_SPEED: number;
+  IDLE_DEGREE: number;
   RANGE: [number, number]; // range in degrees
 };
 
@@ -41,6 +42,7 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     STEPS_PER_REV: 800 * 10 * 4, //
     MAX_ACCELERATION: 4, // in degrees per second squared
     MAX_SPEED: 10, // in degrees per second
+    IDLE_DEGREE: 0,
     RANGE: [0, 200],
   },
   J2: {
@@ -48,10 +50,55 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     STEP_PIN: 30,
     DIR_PIN: 31,
     HOME_SWITCH_PIN: 29,
-    STEPS_PER_REV: 400 * 50,
+    STEPS_PER_REV: 800 * 50,
     MAX_ACCELERATION: 5, // in degrees per second squared
     MAX_SPEED: 30, // in degrees per second
+    IDLE_DEGREE: 0,
     RANGE: [0, 128],
+  },
+  J3: {
+    NAME: "J3",
+    STEP_PIN: 18,
+    DIR_PIN: 17,
+    HOME_SWITCH_PIN: 16,
+    STEPS_PER_REV: 800 * 50,
+    MAX_ACCELERATION: 20, // in degrees per second squared
+    MAX_SPEED: 30, // in degrees per second
+    IDLE_DEGREE: 42.291,
+    RANGE: [0, 140],
+  },
+  J4: {
+    NAME: "J4",
+    STEP_PIN: 15,
+    DIR_PIN: 14,
+    HOME_SWITCH_PIN: 2,
+    STEPS_PER_REV: 800 * 10 * 2,
+    MAX_ACCELERATION: 5,
+    MAX_SPEED: 40,
+    IDLE_DEGREE: 209.655,
+    RANGE: [0, 325],
+  },
+  J5: {
+    NAME: "J5",
+    STEP_PIN: 47,
+    DIR_PIN: 46,
+    HOME_SWITCH_PIN: 45,
+    STEPS_PER_REV: 15240,
+    MAX_ACCELERATION: 50,
+    MAX_SPEED: 60,
+    IDLE_DEGREE: 90,
+    RANGE: [0, 180],
+  },
+  J6: {
+    NAME: "J6",
+    STEP_PIN: 51,
+    DIR_PIN: 52,
+    HOME_SWITCH_PIN: 53,
+    STEPS_PER_REV: 800,
+    MAX_ACCELERATION: 5,
+    MAX_SPEED: 30,
+    IDLE_DEGREE: 0,
+    RANGE: [0, 120],
   },
 };
 
@@ -91,18 +138,11 @@ export default class Joint {
 
   constructor(config: MotorConfig) {
     this.name = config.NAME;
-    this.deviceNum = jointToDeviceMap[config.NAME];
+    this.deviceNum = JointToDeviceMap[config.NAME];
 
     this.initializeLogger();
     this.initializeStepper(config);
     this.initializeHomeSwitch(config.HOME_SWITCH_PIN);
-
-    io.on(`stepper-done-${this.deviceNum}`, (position: any) => {
-      this.degrees = this.convertStepsToDegrees(position);
-      this.logger.info(
-        `Stepper done, steps: ${position}, degrees: ${this.degrees}`
-      );
-    });
   }
 
   /**
@@ -245,7 +285,7 @@ export default class Joint {
    * @param steps - The number of steps to move.
    * @param callback - A callback function to execute after the movement is complete.
    */
-  private step(steps: number, callback = () => {}) {
+  private step(steps: number, callback = (currentAbsSteps: number) => {}) {
     // special case for steps 0, as it is like not moving
     if (steps !== 0) this.ensureHomed();
     io.accelStepperStep(this.deviceNum, steps, callback);
@@ -256,7 +296,7 @@ export default class Joint {
    * @param position - The target position in steps.
    * @param callback - A callback function to execute after the movement is complete.
    */
-  private stepTo(position: number, callback = () => {}) {
+  private stepTo(position: number, callback = (currentAbsSteps: number) => {}) {
     this.ensureHomed();
     io.accelStepperTo(this.deviceNum, position, callback);
   }
@@ -268,13 +308,15 @@ export default class Joint {
   public async rotateBy(degrees: number) {
     // special case for degrees 0, as it is like not moving
     if (degrees !== 0) this.ensureHomed();
-    this.ensureInRange(degrees + (await this.reportDegrees()));
+    const expectedDegrees = degrees + (await this.reportDegrees());
+    this.ensureInRange(expectedDegrees);
     const steps = this.convertDegreesToSteps(degrees);
-    this.logger.info(`Rotating ${degrees} degrees, ${steps} steps`);
+    this.logger.info(`Rotating by ${degrees} degrees, ${steps} steps`);
 
-    return new Promise<void>((resolve) => {
-      this.step(steps, () => {
-        resolve();
+    return new Promise<boolean>((resolve) => {
+      this.step(steps, (currentAbsSteps) => {
+        this.degrees = this.convertStepsToDegrees(currentAbsSteps);
+        resolve(expectedDegrees === this.degrees);
       });
     });
   }
@@ -288,9 +330,10 @@ export default class Joint {
     this.ensureInRange(degrees);
     const steps = this.convertDegreesToSteps(degrees);
     this.logger.info(`Rotating to ${degrees} degrees, ${steps} steps`);
-    return new Promise<void>((resolve) => {
-      this.stepTo(steps, () => {
-        resolve();
+    return new Promise<boolean>((resolve) => {
+      this.stepTo(steps, (currentAbsSteps) => {
+        this.degrees = this.convertStepsToDegrees(currentAbsSteps);
+        resolve(degrees === this.degrees);
       });
     });
   }
