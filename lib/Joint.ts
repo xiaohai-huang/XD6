@@ -39,24 +39,24 @@ type MotorConfig = {
 export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
   J1: {
     NAME: "J1",
-    STEP_PIN: 27,
-    DIR_PIN: 28,
-    HOME_SWITCH_PIN: 26,
+    STEP_PIN: 25,
+    DIR_PIN: 24,
+    HOME_SWITCH_PIN: 23,
     STEPS_PER_REV: 800 * 10 * 4, //
     MAX_ACCELERATION: 4, // in degrees per second squared
     MAX_SPEED: 10, // in degrees per second
-    READY_POSITION: 0,
-    RANGE: [0, 200],
+    READY_POSITION: 55,
+    RANGE: [0, 105],
   },
   J2: {
     NAME: "J2",
-    STEP_PIN: 30,
-    DIR_PIN: 31,
-    HOME_SWITCH_PIN: 29,
+    STEP_PIN: 21,
+    DIR_PIN: 20,
+    HOME_SWITCH_PIN: 19,
     STEPS_PER_REV: 800 * 50,
     MAX_ACCELERATION: 5, // in degrees per second squared
     MAX_SPEED: 30, // in degrees per second
-    READY_POSITION: 0,
+    READY_POSITION: 20,
     RANGE: [0, 128],
   },
   J3: {
@@ -77,7 +77,7 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     HOME_SWITCH_PIN: 2,
     STEPS_PER_REV: 800 * 10 * 2,
     MAX_ACCELERATION: 30,
-    MAX_SPEED: 40,
+    MAX_SPEED: 60,
     READY_POSITION: 209.655,
     RANGE: [0, 325],
   },
@@ -349,9 +349,8 @@ export default class Joint {
 
   /**
    * Homes the joint by moving it to its home position.
-   * @param onSuccess - A callback function to execute after homing is successful.
    */
-  public async home(onSuccess = () => {}) {
+  public async home(): Promise<boolean> {
     this.logger.info("Homing joint");
     this.isHoming = true;
 
@@ -360,8 +359,8 @@ export default class Joint {
         "Home switch is activate, rotate by 15 degrees and home again"
       );
       await this.rotateBy(15);
-      await this.home();
-      return;
+      const success = await this.home();
+      return success;
     }
 
     // Set the speed to the homing speed
@@ -383,20 +382,26 @@ export default class Joint {
     await this.resetSpeedAndAcceleration();
     this.setPositionZero();
 
+    let success = false;
     if (this.homeSwitchActivate) {
       this.logger.info("Homing success");
       this.homed = true;
       await wait(500);
-      this.rotateTo(this.READY_POSITION);
-      onSuccess();
+      await this.rotateTo(this.READY_POSITION);
+      success = true;
     } else {
+      success = false;
       this.homed = false;
       this.logger.error(
         "Have traveled too far, and home switch is not activated"
       );
+      throw new Error(
+        "Homing failed. Have traveled too far, and home switch is not activated"
+      );
     }
 
     this.isHoming = false;
+    return success;
   }
 
   /**
