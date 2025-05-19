@@ -11,38 +11,23 @@ type BoardType = Omit<five.Board, "io"> & {
 
 const board: BoardType = new five.Board({ io, debug: true });
 
-const joint = "J3";
-const deviceNum = JointToDeviceMap[joint];
-function InitMotor() {
-  io.accelStepperConfig({
-    deviceNum,
-    type: io.STEPPER.TYPE.DRIVER,
-    stepPin: MOTOR_CONFIGS[joint].STEP_PIN,
-    directionPin: MOTOR_CONFIGS[joint].DIR_PIN,
-  });
-  console.log(MOTOR_CONFIGS[joint]);
-
-  io.accelStepperSpeed(deviceNum, 1600);
-  io.accelStepperAcceleration(deviceNum, 400);
-}
-
-function s() {
-  io.accelStepperStop(deviceNum);
-}
-
-function step(steps: number) {
-  io.accelStepperStep(deviceNum, steps, () => {
-    console.log(`done stepping ${joint} for ${steps} steps`);
-  });
-}
-
 board.on("ready", function () {
-  // const J1 = Joint.createJoint("J1");
-  // const J2 = Joint.createJoint("J2");
+  const J1 = Joint.createJoint("J1");
+  const J2 = Joint.createJoint("J2");
   const J3 = Joint.createJoint("J3");
   const J4 = Joint.createJoint("J4");
   const J5 = Joint.createJoint("J5");
   // InitMotor();
+  const joints = [J1, J2, J3, J4, J5];
+  async function home() {
+    await Promise.all([J1.home(), J2.home(), J4.home(), J5.home()]);
 
-  board.repl.inject({ step, s, io, J3, J4, J5 });
+    await J3.home();
+  }
+
+  const s = () => {
+    joints.forEach((joint) => joint.stop());
+  };
+
+  board.repl.inject({ io, J1, J2, J3, J4, J5, home, s });
 });
