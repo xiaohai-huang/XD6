@@ -33,6 +33,7 @@ type MotorConfig = {
    */
   READY_POSITION: number;
   RANGE: [number, number]; // range in degrees
+  HOMING_SPEED: number; // Add homing speed in degrees per second
 };
 
 // todo: change max speed and max acceleration to degrees instead of steps
@@ -47,6 +48,7 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     MAX_SPEED: 10, // in degrees per second
     READY_POSITION: 55,
     RANGE: [0, 105],
+    HOMING_SPEED: 3, // Add homing speed
   },
   J2: {
     NAME: "J2",
@@ -58,6 +60,7 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     MAX_SPEED: 30, // in degrees per second
     READY_POSITION: 20,
     RANGE: [0, 128],
+    HOMING_SPEED: 4, // Add homing speed
   },
   J3: {
     NAME: "J3",
@@ -69,6 +72,7 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     MAX_SPEED: 30, // in degrees per second
     READY_POSITION: 42.291,
     RANGE: [0, 140],
+    HOMING_SPEED: 4, // Add homing speed
   },
   J4: {
     NAME: "J4",
@@ -80,6 +84,7 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     MAX_SPEED: 60,
     READY_POSITION: 209.655,
     RANGE: [0, 325],
+    HOMING_SPEED: 20, // Add homing speed
   },
   J5: {
     NAME: "J5",
@@ -91,6 +96,7 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     MAX_SPEED: 60,
     READY_POSITION: 90,
     RANGE: [0, 180],
+    HOMING_SPEED: 10, // Add homing speed
   },
   J6: {
     NAME: "J6",
@@ -102,6 +108,7 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     MAX_SPEED: 30,
     READY_POSITION: 0,
     RANGE: [0, 120],
+    HOMING_SPEED: 5, // Add homing speed
   },
 };
 
@@ -124,7 +131,7 @@ export default class Joint {
   /**
    * In degrees per second
    */
-  private static HOMING_SPEED: number = 5;
+  private HOMING_SPEED: number; // Remove static keyword to make it instance-specific
 
   /**
    * In degrees
@@ -176,6 +183,7 @@ export default class Joint {
     this.STEPS_PER_REV = config.STEPS_PER_REV;
     this.MAX_SPEED_IN_DEGREES = config.MAX_SPEED;
     this.MAX_ACCELERATION_IN_DEGREES = config.MAX_ACCELERATION;
+    this.HOMING_SPEED = config.HOMING_SPEED; // Initialize homing speed here
     io.accelStepperConfig({
       deviceNum: this.deviceNum,
       type: io.STEPPER.TYPE.DRIVER,
@@ -363,12 +371,12 @@ export default class Joint {
       return success;
     }
 
-    // Set the speed to the homing speed
+    // Set the speed to the joint-specific homing speed
     this.logger.info(
-      `Setting homing speed to ${Joint.HOMING_SPEED} degrees per second and acceleration to 0`
+      `Setting homing speed to ${this.HOMING_SPEED} degrees per second and acceleration to 0`
     );
 
-    this.setSpeed(Joint.HOMING_SPEED);
+    this.setSpeed(this.HOMING_SPEED);
     this.setAcceleration(0);
 
     // Move to home position
