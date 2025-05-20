@@ -70,7 +70,7 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     STEPS_PER_REV: 800 * 50,
     MAX_ACCELERATION: 20, // in degrees per second squared
     MAX_SPEED: 30, // in degrees per second
-    READY_POSITION: 42.291,
+    READY_POSITION: 37.791,
     RANGE: [0, 140],
     HOMING_SPEED: 4, // Add homing speed
   },
@@ -100,15 +100,15 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
   },
   J6: {
     NAME: "J6",
-    STEP_PIN: 51,
-    DIR_PIN: 52,
-    HOME_SWITCH_PIN: 53,
-    STEPS_PER_REV: 800,
-    MAX_ACCELERATION: 5,
-    MAX_SPEED: 30,
-    READY_POSITION: 0,
-    RANGE: [0, 120],
-    HOMING_SPEED: 5, // Add homing speed
+    STEP_PIN: 44,
+    DIR_PIN: 43,
+    HOME_SWITCH_PIN: 42,
+    STEPS_PER_REV: 1600,
+    MAX_ACCELERATION: 100,
+    MAX_SPEED: 100,
+    READY_POSITION: 173,
+    RANGE: [0, 330],
+    HOMING_SPEED: 10, // Add homing speed
   },
 };
 
