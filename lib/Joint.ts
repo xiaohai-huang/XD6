@@ -138,6 +138,8 @@ export default class Joint {
    */
   private READY_POSITION: number = 0;
 
+  private static instances: Joint[] = [];
+
   // Current Degrees, will be updated after movement is done of stopped
   private degrees: number = 0;
   public get Degrees() {
@@ -158,6 +160,7 @@ export default class Joint {
     this.initializeLogger();
     this.initializeStepper(config);
     this.initializeHomeSwitch(config.HOME_SWITCH_PIN);
+    Joint.instances.push(this);
   }
 
   /**
@@ -494,6 +497,22 @@ export default class Joint {
 
   public gotToReadyPosition() {
     return this.rotateTo(this.READY_POSITION);
+  }
+
+  public static homeAll() {
+    return Promise.all(
+      Joint.instances.map((joint) => {
+        return joint.home();
+      })
+    );
+  }
+
+  public static stopAll() {
+    return Promise.all(
+      Joint.instances.map((joint) => {
+        return joint.stop();
+      })
+    );
   }
 }
 
