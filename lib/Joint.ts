@@ -138,7 +138,7 @@ export default class Joint {
    */
   private READY_POSITION: number = 0;
 
-  private static instances: Joint[] = [];
+  public static Instances: Joint[] = [];
 
   // Current Degrees, will be updated after movement is done of stopped
   private degrees: number = 0;
@@ -160,7 +160,7 @@ export default class Joint {
     this.initializeLogger();
     this.initializeStepper(config);
     this.initializeHomeSwitch(config.HOME_SWITCH_PIN);
-    Joint.instances.push(this);
+    Joint.Instances.push(this);
   }
 
   /**
@@ -273,7 +273,7 @@ export default class Joint {
   }
 
   /**
-   * Ensures the joint is homed before performing an action.
+   * Ensures the joint has homed before performing an action.
    * @throws If the joint is not homed and not currently homing.
    */
   private ensureHomed() {
@@ -326,8 +326,15 @@ export default class Joint {
    * @param degrees - The number of degrees to rotate.
    */
   public async rotateBy(degrees: number) {
-    // special case for degrees 0, as it is like not moving
-    if (degrees !== 0) this.ensureHomed();
+    if (degrees === 0) {
+      return new Promise<boolean>((resolve) => {
+        this.step(0, () => {
+          resolve(true);
+        });
+      });
+    }
+
+    this.ensureHomed();
     const expectedDegrees = degrees + (await this.reportDegrees());
     this.ensureInRange(expectedDegrees);
     const steps = this.convertDegreesToSteps(degrees);
@@ -501,7 +508,7 @@ export default class Joint {
 
   public static homeAll() {
     return Promise.all(
-      Joint.instances.map((joint) => {
+      Joint.Instances.map((joint) => {
         return joint.home();
       })
     );
@@ -509,7 +516,7 @@ export default class Joint {
 
   public static stopAll() {
     return Promise.all(
-      Joint.instances.map((joint) => {
+      Joint.Instances.map((joint) => {
         return joint.stop();
       })
     );
