@@ -139,6 +139,7 @@ export default class Joint {
   private READY_POSITION: number = 0;
 
   public static Instances: Joint[] = [];
+  public static Map: Record<string, Joint> = {};
 
   // Current Degrees, will be updated after movement is done of stopped
   private degrees: number = 0;
@@ -161,6 +162,7 @@ export default class Joint {
     this.initializeStepper(config);
     this.initializeHomeSwitch(config.HOME_SWITCH_PIN);
     Joint.Instances.push(this);
+    Joint.Map[this.name] = this;
   }
 
   /**
