@@ -28,10 +28,7 @@ type MotorConfig = {
    * In degrees
    */
   MAX_SPEED: number;
-  /**
-   * In degrees, the position where the motor is at rest
-   */
-  READY_POSITION: number;
+
   RANGE: [number, number]; // range in degrees
   HOMING_SPEED: number; // Add homing speed in degrees per second
 };
@@ -46,8 +43,7 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     STEPS_PER_REV: 800 * 10 * 4, //
     MAX_ACCELERATION: 4, // in degrees per second squared
     MAX_SPEED: 10, // in degrees per second
-    READY_POSITION: 55,
-    RANGE: [0, 105],
+    RANGE: [-55, 50],
     HOMING_SPEED: 3, // Add homing speed
   },
   J2: {
@@ -58,8 +54,7 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     STEPS_PER_REV: 800 * 50,
     MAX_ACCELERATION: 5, // in degrees per second squared
     MAX_SPEED: 30, // in degrees per second
-    READY_POSITION: 20,
-    RANGE: [0, 128],
+    RANGE: [-20, 108],
     HOMING_SPEED: 4, // Add homing speed
   },
   J3: {
@@ -70,8 +65,7 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     STEPS_PER_REV: 800 * 50,
     MAX_ACCELERATION: 20, // in degrees per second squared
     MAX_SPEED: 30, // in degrees per second
-    READY_POSITION: 37.791,
-    RANGE: [0, 140],
+    RANGE: [-38, 102],
     HOMING_SPEED: 4, // Add homing speed
   },
   J4: {
@@ -82,8 +76,7 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     STEPS_PER_REV: 800 * 10 * 2,
     MAX_ACCELERATION: 30,
     MAX_SPEED: 60,
-    READY_POSITION: 209.655,
-    RANGE: [0, 325],
+    RANGE: [-209, 116],
     HOMING_SPEED: 20, // Add homing speed
   },
   J5: {
@@ -94,8 +87,7 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     STEPS_PER_REV: 15240,
     MAX_ACCELERATION: 50,
     MAX_SPEED: 60,
-    READY_POSITION: 90,
-    RANGE: [0, 180],
+    RANGE: [-90, 90],
     HOMING_SPEED: 10, // Add homing speed
   },
   J6: {
@@ -106,8 +98,7 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     STEPS_PER_REV: 1600,
     MAX_ACCELERATION: 100,
     MAX_SPEED: 100,
-    READY_POSITION: 173,
-    RANGE: [0, 330],
+    RANGE: [-173, 157],
     HOMING_SPEED: 10, // Add homing speed
   },
 };
@@ -184,7 +175,6 @@ export default class Joint {
    */
   private initializeStepper(config: MotorConfig) {
     this.RANGE = config.RANGE;
-    this.READY_POSITION = config.READY_POSITION;
     this.STEPS_PER_REV = config.STEPS_PER_REV;
     this.MAX_SPEED_IN_DEGREES = config.MAX_SPEED;
     this.MAX_ACCELERATION_IN_DEGREES = config.MAX_ACCELERATION;
@@ -400,14 +390,14 @@ export default class Joint {
 
     this.logger.info("Reset speed and acceleration");
     await this.resetSpeedAndAcceleration();
-    this.setPositionZero();
 
     let success = false;
     if (this.homeSwitchActivate) {
+      await wait(500);
+      await this.rotateBy(-this.RANGE[0]);
+      this.setPositionZero();
       this.logger.info("Homing success");
       this.homed = true;
-      await wait(500);
-      await this.rotateTo(this.READY_POSITION);
       success = true;
     } else {
       success = false;
