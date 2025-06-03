@@ -131,6 +131,7 @@ export default class Joint {
 
   public static Instances: Joint[] = [];
   public static Map: Record<string, Joint> = {};
+  private calibrationOffset: number = 0; // Calibration offset in degrees
 
   // Current Degrees, will be updated after movement is done of stopped
   private degrees: number = 0;
@@ -156,6 +157,10 @@ export default class Joint {
     Joint.Map[this.name] = this;
   }
 
+  public setCalibrationOffset(offset: number) {
+    this.calibrationOffset = offset;
+    this.logger.info(`Calibration offset set to ${offset} degrees`);
+  }
   /**
    * Converts a value in degrees to steps based on the steps per revolution.
    * @param degrees - The value in degrees to convert.
@@ -381,9 +386,9 @@ export default class Joint {
     this.setSpeed(this.HOMING_SPEED);
     this.setAcceleration(0);
 
-    // Move to home position
+    // Move to limit position
     // It might be interrupted by the home switch
-    this.logger.info("Moving to home position");
+    this.logger.info("Moving to limit position");
     const maxReach = Math.abs(this.RANGE[0]) + Math.abs(this.RANGE[1]) + 5;
     await this.rotateBy(-maxReach);
     await this.stop();
@@ -394,7 +399,7 @@ export default class Joint {
     let success = false;
     if (this.homeSwitchActivate) {
       await wait(500);
-      await this.rotateBy(-this.RANGE[0]);
+      await this.rotateBy(-this.RANGE[0] + this.calibrationOffset);
       this.setPositionZero();
       this.logger.info("Homing success");
       this.homed = true;
