@@ -394,8 +394,8 @@ export default class Joint {
     // Move to home position
     // It might be interrupted by the home switch
     this.logger.info("Moving to home position");
-    const maxRange = this.RANGE[1] + 5;
-    await this.rotateBy(-maxRange);
+    const maxReach = Math.abs(this.RANGE[0]) + Math.abs(this.RANGE[1]) + 5;
+    await this.rotateBy(-maxReach);
     await this.stop();
 
     this.logger.info("Reset speed and acceleration");
