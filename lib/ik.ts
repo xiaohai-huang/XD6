@@ -1,7 +1,7 @@
 import { multiply, unit } from "mathjs";
 
-// theta is a variable that represents the joint angle in radians
-// theta's input is is radians
+// Define DH parameters for each joint
+// Note: The value passed to theta functions must be in radians.
 const DH_Parameters = {
   J1: {
     theta: (angleInRadians: number) => angleInRadians,
@@ -41,20 +41,15 @@ const DH_Parameters = {
   },
 };
 
-// Function to create a homogeneous transformation matrix from position and orientation
-// x, y, z are the position coordinates
-// rx, ry, rz are the Euler angles in radians representing orientation
-// The matrix is a 4x4 matrix that represents the transformation in 3D space
-
 /**
- * Function to create a homogeneous transformation matrix from position and orientation
- * @param x
- * @param y
- * @param z
- * @param rx the Euler angles in radians representing orientation
- * @param ry the Euler angles in radians representing orientation
- * @param rz the Euler angles in radians representing orientation
- * @returns A 4x4 matrix that represents the transformation in 3D space
+ * Create a homogeneous transformation matrix from position and orientation.
+ * @param x Position along the x-axis.
+ * @param y Position along the y-axis.
+ * @param z Position along the z-axis.
+ * @param rx Rotation around the x-axis (roll) in radians.
+ * @param ry Rotation around the y-axis (pitch) in radians.
+ * @param rz Rotation around the z-axis (yaw) in radians.
+ * @returns A 4x4 transformation matrix.
  */
 function createHomogeneousMatrix(
   x: number,
@@ -64,6 +59,7 @@ function createHomogeneousMatrix(
   ry: number,
   rz: number
 ) {
+  // Compute rotation matrix components
   return [
     [
       Math.cos(rz) * Math.cos(ry),
@@ -102,77 +98,55 @@ function extractHomogeneousMatrix(matrix: number[][]) {
   return { x, y, z, rx, ry, rz };
 }
 
+/**
+ * Create a Denavit-Hartenberg transformation matrix.
+ * @param theta Joint angle in radians.
+ * @param alpha Twist angle in radians.
+ * @param d Offset along the previous z-axis.
+ * @param a Offset along the previous x-axis.
+ * @returns A 4x4 transformation matrix.
+ */
 function createDHMatrix(theta: number, alpha: number, d: number, a: number) {
   // prettier-ignore
   return [
-        [Math.cos(theta), -Math.sin(theta) * Math.cos(alpha), Math.sin(theta) * Math.sin(alpha), a * Math.cos(theta)],
-        [Math.sin(theta), Math.cos(theta) * Math.cos(alpha), -Math.cos(theta) * Math.sin(alpha), a * Math.sin(theta)],
-        [0, Math.sin(alpha), Math.cos(alpha), d],
-        [0, 0, 0, 1],
-    ];
+    [Math.cos(theta), -Math.sin(theta) * Math.cos(alpha), Math.sin(theta) * Math.sin(alpha), a * Math.cos(theta)],
+    [Math.sin(theta), Math.cos(theta) * Math.cos(alpha), -Math.cos(theta) * Math.sin(alpha), a * Math.sin(theta)],
+    [0, Math.sin(alpha), Math.cos(alpha), d],
+    [0, 0, 0, 1],
+  ];
 }
-
-const toolFrame = createHomogeneousMatrix(0, 0, 0, 0, 0, 0);
 
 /**
- * Get the transformation matrix from the base frame to the tool frame using forward kinematics.
- * @param jointAngles - An array of joint angles in radians, where each index corresponds to a joint (J1 to J6).
- * @param toolFrame - A 4x4 matrix representing the tool frame in the base frame.
- * @returns
+ * Compute the transformation matrix from the base frame to the tool frame using forward kinematics.
+ * @param jointAngles Array of joint angles in radians (J1 to J6).
+ * @param toolFrame A 4x4 matrix representing the tool frame in the base frame.
+ * @returns The final transformation matrix from base to tool frame.
  */
 function forwardKinematics(jointAngles: number[], toolFrame: number[][]) {
-  const T01 = createDHMatrix(
-    DH_Parameters.J1.theta(jointAngles[0]),
-    DH_Parameters.J1.alpha,
-    DH_Parameters.J1.d,
-    DH_Parameters.J1.a
-  );
-  const T12 = createDHMatrix(
-    DH_Parameters.J2.theta(jointAngles[1]),
-    DH_Parameters.J2.alpha,
-    DH_Parameters.J2.d,
-    DH_Parameters.J2.a
-  );
-  const T23 = createDHMatrix(
-    DH_Parameters.J3.theta(jointAngles[2]),
-    DH_Parameters.J3.alpha,
-    DH_Parameters.J3.d,
-    DH_Parameters.J3.a
-  );
-  const T34 = createDHMatrix(
-    DH_Parameters.J4.theta(jointAngles[3]),
-    DH_Parameters.J4.alpha,
-    DH_Parameters.J4.d,
-    DH_Parameters.J4.a
-  );
-  const T45 = createDHMatrix(
-    DH_Parameters.J5.theta(jointAngles[4]),
-    DH_Parameters.J5.alpha,
-    DH_Parameters.J5.d,
-    DH_Parameters.J5.a
-  );
-  const T56 = createDHMatrix(
-    DH_Parameters.J6.theta(jointAngles[5]),
-    DH_Parameters.J6.alpha,
-    DH_Parameters.J6.d,
-    DH_Parameters.J6.a
-  );
-  const T0_Tool = multiply(T01, T12, T23, T34, T45, T56, toolFrame); // Multiply all transformation matrices to get the final transformation matrix
-
-  return T0_Tool; // Return the final transformation matrix from base to tool frame
+  const matrices = Object.keys(DH_Parameters).map((joint, index) => {
+    const params = DH_Parameters[joint as keyof typeof DH_Parameters];
+    return createDHMatrix(
+      params.theta(jointAngles[index]),
+      params.alpha,
+      params.d,
+      params.a
+    );
+  });
+  return multiply(...matrices, toolFrame); // Multiply all matrices to get the final transformation
 }
 
+// Example usage
 console.log("Forward Kinematics Example:");
 const jointAngles = [0, 20, -89, 0, 45, 0]; // Example joint angles in degrees
 const R_Base_to_Tool = forwardKinematics(
   jointAngles.map((angle) => unit(angle, "deg").value), // Convert angles to radians
-  toolFrame
-); // Convert angles to radians
+  createHomogeneousMatrix(0, 0, 0, 0, 0, 0)
+);
 
 console.log("Tool Frame (Transformation Matrix):", R_Base_to_Tool);
 const values = extractHomogeneousMatrix(R_Base_to_Tool);
 
-// convert radians to degrees for output
+// Convert radians to degrees for output
 values.rx = unit(values.rx, "rad").toNumber("deg");
 values.ry = unit(values.ry, "rad").toNumber("deg");
 values.rz = unit(values.rz, "rad").toNumber("deg");
