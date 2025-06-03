@@ -302,7 +302,6 @@ export class Kinematics {
   }
 }
 
-// Example usage
 const DH_Parameters = {
   J1: {
     theta: (angleInRadians: number) => angleInRadians,
@@ -341,3 +340,7 @@ const DH_Parameters = {
     a: 0,
   },
 };
+
+export function createKinematics() {
+  return new Kinematics(DH_Parameters);
+}

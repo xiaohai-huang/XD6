@@ -518,6 +518,12 @@ export default class Joint {
       })
     );
   }
+
+  public static createAllJoints() {
+    return Object.keys(MOTOR_CONFIGS).map((key) => {
+      return Joint.createJoint(key as JointName);
+    });
+  }
 }
 
 async function wait(ms: number) {
