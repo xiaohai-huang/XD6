@@ -306,8 +306,8 @@ const DH_Parameters = {
   J1: {
     theta: (angleInRadians: number) => angleInRadians,
     alpha: unit(-90, "deg").value,
-    d: 104.5,
-    a: 52.75,
+    d: 184,
+    a: 65,
   },
   J2: {
     theta: (angleInRadians: number) => angleInRadians - unit(90, "deg").value,
