@@ -167,10 +167,8 @@ export class Kinematics {
     const J3AngleDeg = -(thetaD + thetaE) + 90;
     const R_0_3 = this.forwardKinematics([J1AngleDeg, J2AngleDeg, J3AngleDeg]);
     const R_0_3_Transposed = transpose(R_0_3);
-    console.log("t", R_0_3_Transposed);
     // spherical wrist orientation
     const R_3_6 = multiply(R_0_3_Transposed, R_0_6);
-    console.log("R_3_6", R_3_6);
     // Calculate J4, J5, J6 angles based on the wrist configuration
     const get456Angles = () => {
       const r13 = R_3_6[0][2];
