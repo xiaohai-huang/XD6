@@ -41,11 +41,11 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     STEP_PIN: 25,
     DIR_PIN: 24,
     HOME_SWITCH_PIN: 23,
-    STEPS_PER_REV: 800 * 10 * 4, //
-    MAX_ACCELERATION: 4, // in degrees per second squared
-    MAX_SPEED: 10, // in degrees per second
-    RANGE: [-50, 55],
-    HOMING_SPEED: 3, // Add homing speed,
+    STEPS_PER_REV: 800 * 10 * 4,
+    MAX_ACCELERATION: 20, // in degrees per second squared
+    MAX_SPEED: 30, // in degrees per second
+    RANGE: [-170, 115],
+    HOMING_SPEED: 15, // Add homing speed,
     HOMING_DIRECTION: "positive",
   },
   J2: {
@@ -80,7 +80,7 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     STEPS_PER_REV: 800 * 10 * 2,
     MAX_ACCELERATION: 30,
     MAX_SPEED: 60,
-    RANGE: [-209, 116],
+    RANGE: [-209, 145],
     HOMING_SPEED: 20, // Add homing speed
     HOMING_DIRECTION: "negative",
   },
@@ -92,7 +92,7 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     STEPS_PER_REV: 15240,
     MAX_ACCELERATION: 50,
     MAX_SPEED: 60,
-    RANGE: [-90, 90],
+    RANGE: [-100.9, 106],
     HOMING_SPEED: 10, // Add homing speed
     HOMING_DIRECTION: "negative",
   },
@@ -300,7 +300,7 @@ export default class Joint {
     const [min, max] = this.RANGE;
     if (targetDegrees < min || targetDegrees > max) {
       throw new Error(
-        `Target degrees ${targetDegrees} out of range [${min}, ${max}]`
+        `[${this.Name}] Target degrees ${targetDegrees} out of range [${min}, ${max}]`
       );
     }
   }
@@ -528,6 +528,10 @@ export default class Joint {
 
     await Promise.all(first.map((joint) => joint.home()));
     await Promise.all(last.map((joint) => joint.home()));
+  }
+
+  public static async goToReadyAll() {
+    return this.Instances.map((joint) => joint.goToReadyPosition());
   }
 
   public static stopAll() {
