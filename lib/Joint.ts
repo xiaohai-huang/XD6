@@ -518,16 +518,16 @@ export default class Joint {
     }
   }
 
-  public gotToReadyPosition() {
+  public goToReadyPosition() {
     return this.rotateTo(this.READY_POSITION);
   }
 
-  public static homeAll() {
-    return Promise.all(
-      Joint.Instances.map((joint) => {
-        return joint.home();
-      })
-    );
+  public static async homeAll() {
+    const first = this.Instances.slice(0, 3);
+    const last = this.Instances.slice(3);
+
+    await Promise.all(first.map((joint) => joint.home()));
+    await Promise.all(last.map((joint) => joint.home()));
   }
 
   public static stopAll() {
