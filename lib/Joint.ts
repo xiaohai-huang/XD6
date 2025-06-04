@@ -31,6 +31,7 @@ type MotorConfig = {
 
   RANGE: [number, number]; // range in degrees
   HOMING_SPEED: number; // Add homing speed in degrees per second
+  HOMING_DIRECTION: "positive" | "negative"; // Add homing direction
 };
 
 // todo: change max speed and max acceleration to degrees instead of steps
@@ -43,8 +44,9 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     STEPS_PER_REV: 800 * 10 * 4, //
     MAX_ACCELERATION: 4, // in degrees per second squared
     MAX_SPEED: 10, // in degrees per second
-    RANGE: [-55, 50],
-    HOMING_SPEED: 3, // Add homing speed
+    RANGE: [-50, 55],
+    HOMING_SPEED: 3, // Add homing speed,
+    HOMING_DIRECTION: "positive",
   },
   J2: {
     NAME: "J2",
@@ -56,6 +58,7 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     MAX_SPEED: 30, // in degrees per second
     RANGE: [-20, 108],
     HOMING_SPEED: 4, // Add homing speed
+    HOMING_DIRECTION: "negative",
   },
   J3: {
     NAME: "J3",
@@ -65,8 +68,9 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     STEPS_PER_REV: 800 * 50,
     MAX_ACCELERATION: 20, // in degrees per second squared
     MAX_SPEED: 30, // in degrees per second
-    RANGE: [-38, 102],
+    RANGE: [-102, 38],
     HOMING_SPEED: 4, // Add homing speed
+    HOMING_DIRECTION: "positive",
   },
   J4: {
     NAME: "J4",
@@ -78,6 +82,7 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     MAX_SPEED: 60,
     RANGE: [-209, 116],
     HOMING_SPEED: 20, // Add homing speed
+    HOMING_DIRECTION: "negative",
   },
   J5: {
     NAME: "J5",
@@ -89,6 +94,7 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     MAX_SPEED: 60,
     RANGE: [-90, 90],
     HOMING_SPEED: 10, // Add homing speed
+    HOMING_DIRECTION: "negative",
   },
   J6: {
     NAME: "J6",
@@ -100,6 +106,7 @@ export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
     MAX_SPEED: 100,
     RANGE: [-173, 157],
     HOMING_SPEED: 10, // Add homing speed
+    HOMING_DIRECTION: "negative",
   },
 };
 
@@ -122,8 +129,8 @@ export default class Joint {
   /**
    * In degrees per second
    */
-  private HOMING_SPEED: number; // Remove static keyword to make it instance-specific
-
+  private HOMING_SPEED: number;
+  private HOMING_DIRECTION: "positive" | "negative" = "negative";
   /**
    * In degrees
    */
@@ -183,7 +190,8 @@ export default class Joint {
     this.STEPS_PER_REV = config.STEPS_PER_REV;
     this.MAX_SPEED_IN_DEGREES = config.MAX_SPEED;
     this.MAX_ACCELERATION_IN_DEGREES = config.MAX_ACCELERATION;
-    this.HOMING_SPEED = config.HOMING_SPEED; // Initialize homing speed here
+    this.HOMING_SPEED = config.HOMING_SPEED;
+    this.HOMING_DIRECTION = config.HOMING_DIRECTION;
     io.accelStepperConfig({
       deviceNum: this.deviceNum,
       type: io.STEPPER.TYPE.DRIVER,
@@ -368,12 +376,15 @@ export default class Joint {
   public async home(): Promise<boolean> {
     this.logger.info("Homing joint");
     this.isHoming = true;
-
     if (this.homeSwitchActivate) {
       this.logger.info(
-        "Home switch is activate, rotate by 15 degrees and home again"
+        "Home switch is activate, rotate by 15 degrees away from the limit switch and home again"
       );
-      await this.rotateBy(15);
+      if (this.HOMING_DIRECTION === "negative") {
+        await this.rotateBy(15);
+      } else {
+        await this.rotateBy(-15);
+      }
       const success = await this.home();
       return success;
     }
@@ -390,7 +401,10 @@ export default class Joint {
     // It might be interrupted by the home switch
     this.logger.info("Moving to limit position");
     const maxReach = Math.abs(this.RANGE[0]) + Math.abs(this.RANGE[1]) + 5;
-    await this.rotateBy(-maxReach);
+
+    await this.rotateBy(
+      this.HOMING_DIRECTION === "negative" ? -maxReach : maxReach
+    );
     await this.stop();
 
     this.logger.info("Reset speed and acceleration");
@@ -399,7 +413,11 @@ export default class Joint {
     let success = false;
     if (this.homeSwitchActivate) {
       await wait(500);
-      await this.rotateBy(-this.RANGE[0] + this.calibrationOffset);
+      if (this.HOMING_DIRECTION === "negative") {
+        await this.rotateBy(-this.RANGE[0] + this.calibrationOffset);
+      } else {
+        await this.rotateBy(-this.RANGE[1] + this.calibrationOffset);
+      }
       this.setPositionZero();
       this.logger.info("Homing success");
       this.homed = true;
@@ -456,6 +474,7 @@ export default class Joint {
    */
   private setPositionZero() {
     io.accelStepperZero(this.deviceNum);
+    this.degrees = 0;
     this.logger.info("Setting position to zero");
   }
 
