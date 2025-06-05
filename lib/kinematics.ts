@@ -1,5 +1,5 @@
 import { acos, atan2, inv, multiply, transpose, unit } from "mathjs";
-import { JOINT_CONFIGS } from "./Joint";
+import { JOINT_CONFIGS } from "./Joint.ts";
 
 type TheFourDHParameters = {
   theta: (angleInRadians: number) => number;
@@ -62,7 +62,19 @@ export class Kinematics {
         );
       });
 
-    return multiply(...matrices, this.toolFrame); // Multiply all matrices to get the final transformation
+    return this.normalize(multiply(...matrices, this.toolFrame)); // Multiply all matrices to get the final transformation
+  }
+
+  /**
+   * Normalizes values close to zero in a 2D array.
+   * @param matrix A 2D array of numbers.
+   * @returns A 2D array with values close to zero replaced by 0.
+   */
+  normalize(matrix: number[][]): number[][] {
+    const threshold = 1e-10; // Define the threshold for normalization
+    return matrix.map((row) =>
+      row.map((value) => (Math.abs(value) < threshold ? 0 : value))
+    );
   }
 
   /**
@@ -191,9 +203,16 @@ export class Kinematics {
         ];
       }
     };
-    const [J4AngleDeg, J5AngleDeg, J6AngleDeg] = get456Angles().map((radians) =>
+    let [J4AngleDeg, J5AngleDeg, J6AngleDeg] = get456Angles().map((radians) =>
       unit(radians, "rad").toNumber("deg")
     );
+    const wristAngles = [0, 0, 0, J4AngleDeg, J5AngleDeg, J6AngleDeg];
+    if (Kinematics.ensureInRange(wristAngles) === false) {
+      wristConfig = wristConfig === "F" ? "NF" : "F"; // toggle wrist configuration
+      [J4AngleDeg, J5AngleDeg, J6AngleDeg] = get456Angles().map((radians) =>
+        unit(radians, "rad").toNumber("deg")
+      );
+    }
 
     // make sure the degrees are within the range of each joint
     const degrees = [
