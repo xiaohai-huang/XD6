@@ -34,8 +34,7 @@ type MotorConfig = {
   HOMING_DIRECTION: "positive" | "negative"; // Add homing direction
 };
 
-// todo: change max speed and max acceleration to degrees instead of steps
-export const MOTOR_CONFIGS: Record<string, MotorConfig> = {
+export const JOINT_CONFIGS: Record<string, MotorConfig> = {
   J1: {
     NAME: "J1",
     STEP_PIN: 25,
@@ -244,7 +243,7 @@ export default class Joint {
    * @throws If the motor configuration for the given name is not found.
    */
   public static createJoint(name: JointName): Joint {
-    const config = MOTOR_CONFIGS[name];
+    const config = JOINT_CONFIGS[name];
     if (!config) {
       throw new Error(`Motor configuration for ${name} not found.`);
     }
@@ -543,7 +542,7 @@ export default class Joint {
   }
 
   public static createAllJoints() {
-    return Object.keys(MOTOR_CONFIGS).map((key) => {
+    return Object.keys(JOINT_CONFIGS).map((key) => {
       return Joint.createJoint(key as JointName);
     });
   }
