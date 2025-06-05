@@ -1,4 +1,5 @@
 import { acos, atan2, inv, multiply, transpose, unit } from "mathjs";
+import { JOINT_CONFIGS } from "./Joint";
 
 type TheFourDHParameters = {
   theta: (angleInRadians: number) => number;
@@ -193,7 +194,9 @@ export class Kinematics {
     const [J4AngleDeg, J5AngleDeg, J6AngleDeg] = get456Angles().map((radians) =>
       unit(radians, "rad").toNumber("deg")
     );
-    return [
+
+    // make sure the degrees are within the range of each joint
+    const degrees = [
       J1AngleDeg,
       J2AngleDeg,
       J3AngleDeg,
@@ -201,6 +204,24 @@ export class Kinematics {
       J5AngleDeg,
       J6AngleDeg,
     ];
+    if (Kinematics.ensureInRange(degrees) === false) {
+      throw new Error("Joint angles out of range");
+    }
+    return degrees;
+  }
+
+  private static ensureInRange(jointAngles: number[]): boolean {
+    return jointAngles.every((angle, index) => {
+      const name = `J${index + 1}`;
+      const [min, max] = JOINT_CONFIGS[name].RANGE;
+      const inRange = angle >= min && angle <= max;
+      if (!inRange) {
+        console.error(
+          `Joint ${name} angle ${angle} is out of range [${min}, ${max}]`
+        );
+      }
+      return inRange;
+    });
   }
 
   /**
