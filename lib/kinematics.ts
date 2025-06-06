@@ -62,7 +62,7 @@ export class Kinematics {
         );
       });
 
-    return this.normalize(multiply(...matrices, this.toolFrame)); // Multiply all matrices to get the final transformation
+    return multiply(...matrices, this.toolFrame); // Multiply all matrices to get the final transformation
   }
 
   /**
@@ -124,12 +124,7 @@ export class Kinematics {
     const wristCenterY = centerOfSphericalWrist[1][3];
     const wristCenterZ = centerOfSphericalWrist[2][3];
 
-    let J1AngleDeg = unit(atan2(wristCenterY, wristCenterX), "rad").toNumber(
-      "deg"
-    );
-    if (J1AngleDeg < 0) {
-      J1AngleDeg += 180; // Ensure J1 angle is positive
-    }
+    let J1AngleDeg = Kinematics.getJ1Angle(wristCenterX, wristCenterY);
 
     // rotate J1 to zero degree
     const wristCenterXRotated =
@@ -329,14 +324,44 @@ export class Kinematics {
     const x = matrix[0][3];
     const y = matrix[1][3];
     const z = matrix[2][3];
-    const rx = unit(Math.atan2(matrix[2][1], matrix[2][2]), "rad").toNumber(
-      "deg"
-    ); // Roll
-    const ry = unit(Math.asin(-matrix[2][0]), "rad").toNumber("deg"); // Pitch
-    const rz = unit(Math.atan2(matrix[1][0], matrix[0][0]), "rad").toNumber(
-      "deg"
-    ); // Yaw
-    return { x, y, z, rx, ry, rz };
+    const ry = Math.atan2(
+      -matrix[2][0],
+      Math.sqrt(matrix[0][0] ** 2 + matrix[1][0] ** 2)
+    );
+
+    const rx = Math.atan2(
+      matrix[2][1] / Math.cos(ry),
+      matrix[2][2] / Math.cos(ry)
+    );
+
+    const rz = Math.atan2(
+      matrix[1][0] / Math.cos(ry),
+      matrix[0][0] / Math.cos(ry)
+    );
+
+    return {
+      x,
+      y,
+      z,
+      rx: unit(rx, "rad").toNumber("deg"),
+      ry: unit(ry, "rad").toNumber("deg"),
+      rz: unit(rz, "rad").toNumber("deg"),
+    };
+  }
+
+  static getJ1Angle(x: number, y: number) {
+    if (x === 0) {
+      return -90; // Equivalent to RADIANS(-90) if the result is in degrees
+    } else if (x >= 0 && y > 0) {
+      return Math.atan(y / x) * (180 / Math.PI); // DEGREES(ATAN((y)/(x)))
+    } else if (x >= 0 && y < 0) {
+      return Math.atan(y / x) * (180 / Math.PI); // DEGREES(ATAN((y)/(x)))
+    } else if (x < 0 && y <= 0) {
+      return -180 + Math.atan(y / x) * (180 / Math.PI); // -180+DEGREES(ATAN((y)/(x)))
+    } else if (x <= 0 && y > 0) {
+      return 180 + Math.atan(y / x) * (180 / Math.PI); // 180+DEGREES(ATAN((y)/(x)))
+    }
+    return 0; // Default or error case, depending on expected input
   }
 }
 
