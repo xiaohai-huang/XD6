@@ -1,5 +1,8 @@
 {
   "type": "module",
+  "scripts": {
+    "test": "vitest"
+  },
   "dependencies": {
     "firmata": "^2.3.0",
     "johnny-five": "^2.1.0",
@@ -8,6 +11,7 @@
     "serialport": "^8.0.5"
   },
   "devDependencies": {
-    "@types/johnny-five": "^2.1.11"
+    "@types/johnny-five": "^2.1.11",
+    "vitest": "^3.2.2"
   }
 }
