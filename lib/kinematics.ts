@@ -1,5 +1,5 @@
 import { acos, atan2, inv, multiply, transpose, unit } from "mathjs";
-import { JOINT_CONFIGS } from "./Joint.ts";
+import { JOINT_CONFIGS } from "../config.ts";
 
 type TheFourDHParameters = {
   theta: (angleInRadians: number) => number;

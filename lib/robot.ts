@@ -1,5 +1,5 @@
-import { unit } from "mathjs";
-import Joint, { JOINT_CONFIGS } from "./Joint.ts";
+import Joint from "./Joint.ts";
+import { JOINT_CONFIGS } from "../config.ts";
 import { createKinematics, Kinematics } from "./kinematics.ts";
 
 type TPose = [number, number, number, number, number, number]; // [x, y, z, rx, ry, rz]
