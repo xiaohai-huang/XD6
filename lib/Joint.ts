@@ -1,7 +1,7 @@
 import { io } from "../main.ts";
 import five from "johnny-five";
 import pino from "pino";
-import { JOINT_CONFIGS, MotorConfig } from "../config.ts";
+import { JOINT_CONFIGS, type MotorConfig } from "../config.ts";
 
 // Mapping of joint names (J1 - J6) to device numbers in accelStepper
 export const JointToDeviceMap = {

@@ -26,9 +26,9 @@ export const JOINT_CONFIGS: Record<string, MotorConfig> = {
     HOME_SWITCH_PIN: 23,
     STEPS_PER_REV: 800 * 10 * 4,
     MAX_ACCELERATION: 20, // in degrees per second squared
-    MAX_SPEED: 30, // in degrees per second
+    MAX_SPEED: 20, // in degrees per second
     RANGE: [-170, 115],
-    HOMING_SPEED: 15, // Add homing speed,
+    HOMING_SPEED: 10, // Add homing speed,
     HOMING_DIRECTION: "positive",
   },
   J2: {
