@@ -242,6 +242,10 @@ export class Robot {
     await Promise.all(last.map((joint) => joint.home()));
   }
 
+  public async goToReady() {
+    return await Joint.goToReadyAll();
+  }
+
   public async halt() {
     if (this.moveLIntervalId !== undefined) {
       clearInterval(this.moveLIntervalId);
