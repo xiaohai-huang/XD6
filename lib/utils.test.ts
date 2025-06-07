@@ -30,13 +30,13 @@ describe("getCoordinatedSpeeds", () => {
     const deltaAngles = [-10, -20, -15, -25, -30, -40];
     const result = getCoordinatedSpeeds(deltaAngles);
 
-    expect(result).toEqual([-10, -20, -15, -25, -30, -40]);
+    expect(result).toEqual([10, 20, 15, 25, 30, 40]);
   });
 
   it("should handle mixed positive and negative delta angles", () => {
     const deltaAngles = [10, -20, 15, -25, 30, -40];
     const result = getCoordinatedSpeeds(deltaAngles);
 
-    expect(result).toEqual([10, -20, 15, -25, 30, -40]);
+    expect(result).toEqual([10, 20, 15, 25, 30, 40]);
   });
 });

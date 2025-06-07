@@ -20,7 +20,7 @@ export function getCoordinatedSpeeds(deltaAngles: number[]) {
 
   // Calculate the coordinated speed for each joint
   const coordinatedSpeeds = deltaAngles.map((delta, index) => {
-    return delta / maxTravelTime;
+    return Math.abs(delta) / maxTravelTime;
   });
 
   return coordinatedSpeeds;
