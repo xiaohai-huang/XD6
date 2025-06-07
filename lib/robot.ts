@@ -1,6 +1,8 @@
 import Joint from "./Joint.ts";
 import { JOINT_CONFIGS } from "../config.ts";
 import { createKinematics, Kinematics } from "./kinematics.ts";
+import { getCoordinatedSpeeds } from "./utils.ts";
+import pino from "pino";
 
 type TPose = [number, number, number, number, number, number]; // [x, y, z, rx, ry, rz]
 
@@ -20,6 +22,8 @@ export class Robot {
   private readonly CONTROL_LOOP_FREQUENCY_HZ = 50; // Example
   private readonly TIME_STEP_MS = 1000 / this.CONTROL_LOOP_FREQUENCY_HZ;
   private moveLIntervalId: NodeJS.Timeout;
+  private logger: pino.Logger;
+
   get J1(): Joint {
     return this.instances[0];
   }
@@ -53,8 +57,21 @@ export class Robot {
   }
 
   constructor() {
+    this.initializeLogger();
     this.instances = Joint.createAllJoints();
     this.kinematics = createKinematics();
+  }
+
+  /**
+   * Initializes the logger for the robot.
+   */
+  private initializeLogger() {
+    this.logger = pino({
+      name: "Robot",
+      level: "debug",
+      base: { name: "Robot" },
+      timestamp: pino.stdTimeFunctions.isoTime,
+    });
   }
 
   /**
@@ -232,6 +249,22 @@ export class Robot {
 
     // Move to the target pose linearly
     await this.moveToLinearly(targetPose);
+  }
+
+  async rotateBy(deltaAngles: number[]) {
+    const speeds = getCoordinatedSpeeds(deltaAngles);
+    await Promise.all(
+      speeds.map((speed, index) => this.instances[index].setSpeed(speed))
+    );
+    await Promise.all(
+      deltaAngles.map((angle, index) =>
+        this.instances[index].rotateBy(angle).then(() => {
+          this.logger.info(
+            `Joint ${this.instances[index].Name} rotated by ${angle} degrees.`
+          );
+        })
+      )
+    );
   }
 
   public async home() {
